@@ -13,6 +13,7 @@ servers:
     description: Staging
 tags:
   - name: Health
+  - name: Auth
   - name: Settings
   - name: Staff
   - name: Assignments
@@ -36,6 +37,62 @@ paths:
                   status:
                     type: string
                     example: ok
+  /v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Current authenticated user context
+      description: Returns identifiers from the validated JWT (user, role, organization).
+      operationId: getAuthMe
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated user context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMeResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /v1/staff/invite:
+    post:
+      tags: [Staff]
+      summary: Invite staff member by email
+      description: Sends a Supabase Auth invite email. Requires admin role and server-side Supabase configuration.
+      operationId: inviteStaffByEmail
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffInviteRequest'
+      responses:
+        '202':
+          description: Invite accepted for delivery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffInviteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '502':
+          description: Upstream invite provider error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Invite service not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/settings:
     get:
       tags: [Settings]
@@ -290,7 +347,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
+    AuthMeResponse:
+      type: object
+      required: [user_id, role, org_id]
+      properties:
+        user_id:
+          type: string
+        role:
+          type: string
+        org_id:
+          type: string
+    StaffInviteRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    StaffInviteResponse:
+      type: object
+      required: [status, email, org_id]
+      properties:
+        status:
+          type: string
+          example: invited
+        email:
+          type: string
+          format: email
+        org_id:
+          type: string
     Settings:
       type: object
       required: [funeral_home_name, funeral_home_phone, funeral_home_address]
@@ -473,3 +564,12 @@ components:
           example:
             code: not_found
             message: Resource was not found.
+    ForbiddenError:
+      description: Forbidden request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: forbidden
+            message: Insufficient permissions for this action.
