@@ -1,0 +1,475 @@
+openapi: 3.0.3
+info:
+  title: Funeralface API
+  version: 1.0.0
+  description: REST API contract for Funeralface backend and mobile integration.
+  contact:
+    name: Funeralface Engineering
+    email: engineering@example.com
+servers:
+  - url: https://api.example.com
+    description: Production
+  - url: https://staging-api.example.com
+    description: Staging
+tags:
+  - name: Health
+  - name: Settings
+  - name: Staff
+  - name: Assignments
+  - name: Public
+paths:
+  /v1/health:
+    get:
+      tags: [Health]
+      summary: Health check endpoint
+      description: Returns API service health status for monitoring and smoke checks.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /v1/settings:
+    get:
+      tags: [Settings]
+      summary: Get funeral home settings
+      description: Returns the current settings configured for the authenticated organization.
+      operationId: getSettings
+      responses:
+        '200':
+          description: Settings payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    patch:
+      tags: [Settings]
+      summary: Update funeral home settings
+      description: Updates funeral home settings fields for the authenticated organization.
+      operationId: patchSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsUpdateRequest'
+      responses:
+        '200':
+          description: Updated settings payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /v1/staff:
+    get:
+      tags: [Staff]
+      summary: List staff members
+      description: Lists staff members for the authenticated organization.
+      operationId: listStaff
+      parameters:
+        - in: query
+          name: sort
+          schema:
+            type: string
+            example: -created_at
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Staff list payload
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StaffMember'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Staff]
+      summary: Create staff member
+      description: Creates a new staff member record in the authenticated organization.
+      operationId: createStaff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffCreateRequest'
+      responses:
+        '201':
+          description: Staff member created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMember'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /v1/staff/{id}:
+    patch:
+      tags: [Staff]
+      summary: Update staff member
+      description: Updates staff member profile fields by identifier.
+      operationId: patchStaffById
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffUpdateRequest'
+      responses:
+        '200':
+          description: Staff member updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMember'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags: [Staff]
+      summary: Delete staff member
+      description: Deletes a staff member by identifier for the authenticated organization.
+      operationId: deleteStaffById
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Staff member deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /v1/assignments:
+    get:
+      tags: [Assignments]
+      summary: List pickup assignments
+      description: Returns pickup assignments visible to the authenticated organization.
+      operationId: listAssignments
+      parameters:
+        - in: query
+          name: sort
+          schema:
+            type: string
+            example: -created_at
+      responses:
+        '200':
+          description: Assignment list payload
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PickupAssignment'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: [Assignments]
+      summary: Create pickup assignment
+      description: Creates a new pickup assignment entry.
+      operationId: createAssignment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentCreateRequest'
+      responses:
+        '201':
+          description: Assignment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupAssignment'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /v1/assignments/{id}:
+    patch:
+      tags: [Assignments]
+      summary: Update pickup assignment
+      description: Updates pickup assignment data, including status transitions.
+      operationId: patchAssignmentById
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentUpdateRequest'
+      responses:
+        '200':
+          description: Assignment updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupAssignment'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /v1/public/assignments/by-token/{token}:
+    get:
+      tags: [Public]
+      summary: Get assignment details by family token
+      description: Resolves a validated family token and returns a sanitized assignment view.
+      operationId: getAssignmentByToken
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sanitized family payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyAssignmentView'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '410':
+          description: Token expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    Settings:
+      type: object
+      required: [funeral_home_name, funeral_home_phone, funeral_home_address]
+      properties:
+        funeral_home_name:
+          type: string
+        funeral_home_phone:
+          type: string
+        funeral_home_address:
+          type: string
+        logo_url:
+          type: string
+          nullable: true
+        default_message:
+          type: string
+          nullable: true
+    SettingsUpdateRequest:
+      type: object
+      properties:
+        funeral_home_name:
+          type: string
+        funeral_home_phone:
+          type: string
+        funeral_home_address:
+          type: string
+        logo_url:
+          type: string
+        default_message:
+          type: string
+    StaffMember:
+      type: object
+      required: [id, name, phone]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          nullable: true
+        role:
+          type: string
+          example: user
+        created_at:
+          type: string
+          format: date-time
+    StaffCreateRequest:
+      type: object
+      required: [name, phone]
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+    StaffUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+    PickupAssignment:
+      type: object
+      required: [id, decedent_name, status]
+      properties:
+        id:
+          type: string
+        decedent_name:
+          type: string
+        pickup_address:
+          type: string
+        contact_name:
+          type: string
+        contact_phone:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        assigned_staff_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, assigned, en_route, arrived, completed, cancelled]
+        created_at:
+          type: string
+          format: date-time
+    AssignmentCreateRequest:
+      type: object
+      required: [decedent_name, pickup_address, contact_name, contact_phone]
+      properties:
+        decedent_name:
+          type: string
+        pickup_address:
+          type: string
+        contact_name:
+          type: string
+        contact_phone:
+          type: string
+        notes:
+          type: string
+        assigned_staff_id:
+          type: string
+    AssignmentUpdateRequest:
+      type: object
+      properties:
+        decedent_name:
+          type: string
+        pickup_address:
+          type: string
+        contact_name:
+          type: string
+        contact_phone:
+          type: string
+        notes:
+          type: string
+        assigned_staff_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, assigned, en_route, arrived, completed, cancelled]
+    FamilyAssignmentView:
+      type: object
+      required: [assignment_id, decedent_name, status]
+      properties:
+        assignment_id:
+          type: string
+        decedent_name:
+          type: string
+        status:
+          type: string
+        eta_note:
+          type: string
+          nullable: true
+        support_contact_phone:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+  responses:
+    UnauthorizedError:
+      description: Unauthorized request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: unauthorized
+            message: Authentication is required.
+    BadRequestError:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: bad_request
+            message: Invalid payload.
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: not_found
+            message: Resource was not found.

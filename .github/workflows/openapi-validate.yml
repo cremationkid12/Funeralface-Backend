@@ -1,0 +1,31 @@
+name: OpenAPI Contract Validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - develop
+      - phase/**
+
+jobs:
+  validate-openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint OpenAPI
+        run: npm run openapi:lint
+
+      - name: Validate OpenAPI
+        run: npm run openapi:validate
