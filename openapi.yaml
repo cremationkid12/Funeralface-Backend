@@ -99,6 +99,8 @@ paths:
       summary: Get funeral home settings
       description: Returns the current settings configured for the authenticated organization.
       operationId: getSettings
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Settings payload
@@ -113,6 +115,8 @@ paths:
       summary: Update funeral home settings
       description: Updates funeral home settings fields for the authenticated organization.
       operationId: patchSettings
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -136,6 +140,8 @@ paths:
       summary: List staff members
       description: Lists staff members for the authenticated organization.
       operationId: listStaff
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: sort
@@ -175,6 +181,8 @@ paths:
       summary: Create staff member
       description: Creates a new staff member record in the authenticated organization.
       operationId: createStaff
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -198,6 +206,8 @@ paths:
       summary: Update staff member
       description: Updates staff member profile fields by identifier.
       operationId: patchStaffById
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -226,6 +236,8 @@ paths:
       summary: Delete staff member
       description: Deletes a staff member by identifier for the authenticated organization.
       operationId: deleteStaffById
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -245,6 +257,8 @@ paths:
       summary: List pickup assignments
       description: Returns pickup assignments visible to the authenticated organization.
       operationId: listAssignments
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: sort
@@ -271,6 +285,8 @@ paths:
       summary: Create pickup assignment
       description: Creates a new pickup assignment entry.
       operationId: createAssignment
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -294,6 +310,8 @@ paths:
       summary: Update pickup assignment
       description: Updates pickup assignment data, including status transitions.
       operationId: patchAssignmentById
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
