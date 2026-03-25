@@ -11,7 +11,7 @@
     "openapi:lint": "spectral lint openapi.yaml",
     "openapi:validate": "swagger-cli validate openapi.yaml",
     "test:contract": "npm run openapi:lint && npm run openapi:validate",
-    "test:api": "node --import tsx --test test/*.test.ts test/auth/*.test.ts test/settings/*.test.ts test/staff/*.test.ts test/assignments/*.test.ts",
+    "test:api": "node --import tsx --test test/*.test.ts test/auth/*.test.ts test/settings/*.test.ts test/staff/*.test.ts test/assignments/*.test.ts test/public/*.test.ts",
     "test:db": "node --import tsx --test test/db/*.test.ts",
     "test": "npm run test:contract && npm run test:db && npm run test:api"
   },

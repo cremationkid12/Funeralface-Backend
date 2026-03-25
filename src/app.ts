@@ -1,5 +1,5 @@
 import express from "express";
-import type { Express, Request, Response } from "express";
+import type { Express, Request, RequestHandler, Response } from "express";
 import { requireAuth, type AuthenticatedRequest } from "./auth/authMiddleware";
 import { requireRole } from "./auth/requireRole";
 import {
@@ -26,12 +26,17 @@ import {
   type AssignmentService,
   type AssignmentUpdateInput,
 } from "./services/assignmentService";
+import { createPublicTokenRateLimit } from "./middleware/publicTokenRateLimit";
+import { defaultFamilyTokenService, type FamilyTokenService } from "./services/familyTokenService";
 
 export type AppDependencies = {
   inviteUserByEmail?: (email: string) => Promise<void>;
   settingsService?: SettingsService;
   staffService?: StaffService;
   assignmentService?: AssignmentService;
+  familyTokenService?: FamilyTokenService;
+  /** Override default in-memory rate limit (e.g. tests). */
+  publicTokenRateLimit?: RequestHandler;
 };
 
 export function createApp(deps: AppDependencies = {}): Express {
@@ -42,6 +47,13 @@ export function createApp(deps: AppDependencies = {}): Express {
   const settingsService = deps.settingsService ?? defaultSettingsService;
   const staffService = deps.staffService ?? defaultStaffService;
   const assignmentService = deps.assignmentService ?? defaultAssignmentService;
+  const familyTokenService = deps.familyTokenService ?? defaultFamilyTokenService;
+  const publicTokenRateLimit =
+    deps.publicTokenRateLimit ??
+    createPublicTokenRateLimit({
+      windowMs: Number(process.env.PUBLIC_FAMILY_TOKEN_RATE_LIMIT_WINDOW_MS ?? 60_000),
+      max: Number(process.env.PUBLIC_FAMILY_TOKEN_RATE_LIMIT_MAX ?? 60),
+    });
 
   app.get("/v1/health", (_req: Request, res: Response) => {
     res.status(200).json({ status: "ok" });
@@ -358,6 +370,25 @@ export function createApp(deps: AppDependencies = {}): Express {
       update.status = body.status;
     }
 
+    if ("share_token" in body) {
+      if (body.share_token === null) {
+        update.share_token = null;
+      } else if (typeof body.share_token === "string") {
+        const trimmed = body.share_token.trim();
+        update.share_token = trimmed.length === 0 ? null : trimmed;
+      }
+    }
+    if ("share_token_expires_at" in body) {
+      if (body.share_token_expires_at === null || body.share_token_expires_at === "") {
+        update.share_token_expires_at = null;
+      } else if (typeof body.share_token_expires_at === "string") {
+        update.share_token_expires_at = body.share_token_expires_at;
+      }
+    }
+    if (typeof body.share_token_one_time === "boolean") {
+      update.share_token_one_time = body.share_token_one_time;
+    }
+
     if (Object.keys(update).length === 0) {
       res.status(400).json({
         code: "bad_request",
@@ -384,9 +415,49 @@ export function createApp(deps: AppDependencies = {}): Express {
         });
         return;
       }
+      if (error instanceof Error && error.name === "InvalidShareTokenFieldsError") {
+        res.status(400).json({
+          code: "bad_request",
+          message: error.message,
+        });
+        return;
+      }
       throw error;
     }
   });
+
+  app.get(
+    "/v1/public/assignments/by-token/:token",
+    publicTokenRateLimit,
+    async (req: Request, res: Response) => {
+      const raw = Array.isArray(req.params.token) ? req.params.token[0] : req.params.token;
+      const token = decodeURIComponent(raw ?? "").trim();
+      if (!token || token.length > 512) {
+        res.status(404).json({
+          code: "not_found",
+          message: "Resource was not found.",
+        });
+        return;
+      }
+
+      const outcome = await familyTokenService.resolveByToken(token);
+      if (outcome.type === "not_found") {
+        res.status(404).json({
+          code: "not_found",
+          message: "Resource was not found.",
+        });
+        return;
+      }
+      if (outcome.type === "expired") {
+        res.status(410).json({
+          code: "token_expired",
+          message: "This link has expired.",
+        });
+        return;
+      }
+      res.status(200).json(outcome.view);
+    },
+  );
 
   return app;
 }

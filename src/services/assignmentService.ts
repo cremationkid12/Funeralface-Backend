@@ -37,6 +37,20 @@ export type AssignmentCreateInput = {
 
 export type AssignmentUpdateInput = Partial<AssignmentCreateInput> & {
   status?: AssignmentStatus;
+  /** Set opaque family link token, or `null` to revoke the public link. */
+  share_token?: string | null;
+  /** ISO-8601 expiry for the family link (only applied when issuing a new `share_token`). */
+  share_token_expires_at?: string | null;
+  /** When true, the first successful public resolution consumes the token. */
+  share_token_one_time?: boolean;
+};
+
+type AssignmentRow = PickupAssignmentRecord & {
+  share_token: string | null;
+  share_token_expires_at: Date | null;
+  share_token_revoked_at: Date | null;
+  share_token_consumed_at: Date | null;
+  share_token_one_time: boolean;
 };
 
 export type AssignmentService = {
@@ -158,11 +172,16 @@ export const defaultAssignmentService: AssignmentService = {
 
   async updateByOrgIdAndId(orgId, id, input, actorUserId) {
     const pool = getPgPool();
-    const existingResult = await pool.query<PickupAssignmentRecord>(
+    const existingResult = await pool.query<AssignmentRow>(
       `
       SELECT
         id, org_id, decedent_name, pickup_address, contact_name, contact_phone,
-        notes, assigned_staff_id, status, created_at
+        notes, assigned_staff_id, status, created_at,
+        share_token,
+        share_token_expires_at,
+        share_token_revoked_at,
+        share_token_consumed_at,
+        share_token_one_time
       FROM pickup_assignments
       WHERE org_id = $1 AND id = $2
       LIMIT 1
@@ -179,6 +198,43 @@ export const defaultAssignmentService: AssignmentService = {
       throw err;
     }
 
+    let nextShareToken = current.share_token;
+    let nextShareExpires = current.share_token_expires_at;
+    let nextShareRevoked = current.share_token_revoked_at;
+    let nextShareConsumed = current.share_token_consumed_at;
+    let nextShareOneTime = current.share_token_one_time;
+
+    if (input.share_token !== undefined) {
+      if (input.share_token === null) {
+        nextShareToken = null;
+        nextShareExpires = null;
+        nextShareConsumed = null;
+        nextShareOneTime = false;
+        nextShareRevoked = new Date();
+      } else {
+        const trimmed = input.share_token.trim();
+        nextShareToken = trimmed.length > 0 ? trimmed : null;
+        nextShareRevoked = null;
+        nextShareConsumed = null;
+        if (input.share_token_expires_at !== undefined) {
+          if (input.share_token_expires_at === null || input.share_token_expires_at === "") {
+            nextShareExpires = null;
+          } else {
+            const parsed = new Date(input.share_token_expires_at);
+            if (Number.isNaN(parsed.getTime())) {
+              const err = new Error("Invalid share_token_expires_at");
+              Object.assign(err, { name: "InvalidShareTokenFieldsError" });
+              throw err;
+            }
+            nextShareExpires = parsed;
+          }
+        } else {
+          nextShareExpires = null;
+        }
+        nextShareOneTime = input.share_token_one_time ?? false;
+      }
+    }
+
     const result = await pool.query<PickupAssignmentRecord>(
       `
       UPDATE pickup_assignments
@@ -190,6 +246,11 @@ export const defaultAssignmentService: AssignmentService = {
         notes = $7,
         assigned_staff_id = $8,
         status = $9,
+        share_token = $10,
+        share_token_expires_at = $11,
+        share_token_revoked_at = $12,
+        share_token_consumed_at = $13,
+        share_token_one_time = $14,
         updated_at = NOW()
       WHERE org_id = $1 AND id = $2
       RETURNING
@@ -206,6 +267,11 @@ export const defaultAssignmentService: AssignmentService = {
         input.notes !== undefined ? (input.notes?.trim() || null) : current.notes,
         input.assigned_staff_id !== undefined ? input.assigned_staff_id : current.assigned_staff_id,
         nextStatus,
+        nextShareToken,
+        nextShareExpires,
+        nextShareRevoked,
+        nextShareConsumed,
+        nextShareOneTime,
       ],
     );
 

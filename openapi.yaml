@@ -364,6 +364,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -531,6 +537,17 @@ components:
         status:
           type: string
           enum: [pending, assigned, en_route, arrived, completed, cancelled]
+        share_token:
+          type: string
+          nullable: true
+          description: Opaque family link token, or null to revoke the public link.
+        share_token_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        share_token_one_time:
+          type: boolean
+          description: When true, the first successful public GET consumes the token.
     FamilyAssignmentView:
       type: object
       required: [assignment_id, decedent_name, status]
