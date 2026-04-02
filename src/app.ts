@@ -313,7 +313,15 @@ export function createApp(deps: AppDependencies = {}): Express {
 
   app.post("/v1/staff", requireAuth, requireRole("admin"), async (req: AuthenticatedRequest, res: Response) => {
     const orgId = req.auth?.orgId;
+    const actorUserId = req.auth?.userId;
     if (!orgId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+    if (!actorUserId) {
       res.status(401).json({
         code: "unauthorized",
         message: "Authentication is required.",
@@ -336,13 +344,17 @@ export function createApp(deps: AppDependencies = {}): Express {
       return;
     }
 
-    const created = await staffService.createByOrgId(orgId, {
-      name,
-      phone,
-      email,
-      role,
-      active,
-    } satisfies StaffCreateInput);
+    const created = await staffService.createByOrgId(
+      orgId,
+      {
+        name,
+        phone,
+        email,
+        role,
+        active,
+      } satisfies StaffCreateInput,
+      actorUserId,
+    );
     res.status(201).json(created);
   });
 
@@ -394,7 +406,15 @@ export function createApp(deps: AppDependencies = {}): Express {
 
   app.delete("/v1/staff/:id", requireAuth, requireRole("admin"), async (req: AuthenticatedRequest, res: Response) => {
     const orgId = req.auth?.orgId;
+    const actorUserId = req.auth?.userId;
     if (!orgId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+    if (!actorUserId) {
       res.status(401).json({
         code: "unauthorized",
         message: "Authentication is required.",
@@ -403,7 +423,7 @@ export function createApp(deps: AppDependencies = {}): Express {
     }
 
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const deleted = await staffService.deleteByOrgIdAndId(orgId, id);
+    const deleted = await staffService.deleteByOrgIdAndId(orgId, id, actorUserId);
     if (!deleted) {
       res.status(404).json({
         code: "not_found",
