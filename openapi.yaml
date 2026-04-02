@@ -140,6 +140,32 @@ paths:
           description: Logout accepted
         '400':
           $ref: '#/components/responses/BadRequestError'
+  /v1/auth/password/recover:
+    post:
+      tags: [Auth]
+      summary: Send password recovery email
+      operationId: postAuthPasswordRecover
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRecoverPasswordRequest'
+      responses:
+        '202':
+          description: Password recovery requested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthRecoverPasswordResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '503':
+          description: Auth service not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/staff/invite:
     post:
       tags: [Staff]
@@ -508,6 +534,23 @@ components:
       properties:
         access_token:
           type: string
+    AuthRecoverPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    AuthRecoverPasswordResponse:
+      type: object
+      required: [status, email]
+      properties:
+        status:
+          type: string
+          example: recovery_requested
+        email:
+          type: string
+          format: email
     StaffInviteRequest:
       type: object
       required: [email]
