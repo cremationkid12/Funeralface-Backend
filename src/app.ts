@@ -293,7 +293,7 @@ export function createApp(deps: AppDependencies = {}): Express {
     res.status(200).json(updated);
   });
 
-  app.get("/v1/staff", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.get("/v1/staff", requireAuth, requireRole("admin"), async (req: AuthenticatedRequest, res: Response) => {
     const orgId = req.auth?.orgId;
     if (!orgId) {
       res.status(401).json({
@@ -311,7 +311,7 @@ export function createApp(deps: AppDependencies = {}): Express {
     res.status(200).json({ items });
   });
 
-  app.post("/v1/staff", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.post("/v1/staff", requireAuth, requireRole("admin"), async (req: AuthenticatedRequest, res: Response) => {
     const orgId = req.auth?.orgId;
     if (!orgId) {
       res.status(401).json({
@@ -326,6 +326,7 @@ export function createApp(deps: AppDependencies = {}): Express {
     const phone = typeof body.phone === "string" ? body.phone.trim() : "";
     const email = typeof body.email === "string" ? body.email : null;
     const role = typeof body.role === "string" ? body.role : undefined;
+    const active = typeof body.active === "boolean" ? body.active : undefined;
 
     if (!name || !phone) {
       res.status(400).json({
@@ -340,13 +341,22 @@ export function createApp(deps: AppDependencies = {}): Express {
       phone,
       email,
       role,
+      active,
     } satisfies StaffCreateInput);
     res.status(201).json(created);
   });
 
-  app.patch("/v1/staff/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.patch("/v1/staff/:id", requireAuth, requireRole("admin"), async (req: AuthenticatedRequest, res: Response) => {
     const orgId = req.auth?.orgId;
+    const actorUserId = req.auth?.userId;
     if (!orgId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+    if (!actorUserId) {
       res.status(401).json({
         code: "unauthorized",
         message: "Authentication is required.",
@@ -361,6 +371,7 @@ export function createApp(deps: AppDependencies = {}): Express {
     if (typeof body.phone === "string") update.phone = body.phone;
     if (typeof body.email === "string" || body.email === null) update.email = body.email as string | null;
     if (typeof body.role === "string") update.role = body.role;
+    if (typeof body.active === "boolean") update.active = body.active;
 
     if (Object.keys(update).length === 0) {
       res.status(400).json({
@@ -370,7 +381,7 @@ export function createApp(deps: AppDependencies = {}): Express {
       return;
     }
 
-    const updated = await staffService.updateByOrgIdAndId(orgId, id, update);
+    const updated = await staffService.updateByOrgIdAndId(orgId, id, update, actorUserId);
     if (!updated) {
       res.status(404).json({
         code: "not_found",
@@ -381,7 +392,7 @@ export function createApp(deps: AppDependencies = {}): Express {
     res.status(200).json(updated);
   });
 
-  app.delete("/v1/staff/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.delete("/v1/staff/:id", requireAuth, requireRole("admin"), async (req: AuthenticatedRequest, res: Response) => {
     const orgId = req.auth?.orgId;
     if (!orgId) {
       res.status(401).json({
@@ -403,6 +414,62 @@ export function createApp(deps: AppDependencies = {}): Express {
 
     res.status(204).send();
   });
+
+  app.post(
+    "/v1/staff/:id/activate",
+    requireAuth,
+    requireRole("admin"),
+    async (req: AuthenticatedRequest, res: Response) => {
+      const orgId = req.auth?.orgId;
+      const actorUserId = req.auth?.userId;
+      if (!orgId || !actorUserId) {
+        res.status(401).json({
+          code: "unauthorized",
+          message: "Authentication is required.",
+        });
+        return;
+      }
+
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const updated = await staffService.updateByOrgIdAndId(orgId, id, { active: true }, actorUserId);
+      if (!updated) {
+        res.status(404).json({
+          code: "not_found",
+          message: "Resource was not found.",
+        });
+        return;
+      }
+      res.status(200).json(updated);
+    },
+  );
+
+  app.post(
+    "/v1/staff/:id/deactivate",
+    requireAuth,
+    requireRole("admin"),
+    async (req: AuthenticatedRequest, res: Response) => {
+      const orgId = req.auth?.orgId;
+      const actorUserId = req.auth?.userId;
+      if (!orgId || !actorUserId) {
+        res.status(401).json({
+          code: "unauthorized",
+          message: "Authentication is required.",
+        });
+        return;
+      }
+
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const updated = await staffService.updateByOrgIdAndId(orgId, id, { active: false }, actorUserId);
+      if (!updated) {
+        res.status(404).json({
+          code: "not_found",
+          message: "Resource was not found.",
+        });
+        return;
+      }
+      res.status(200).json(updated);
+    },
+  );
 
   app.get("/v1/assignments", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const orgId = req.auth?.orgId;
