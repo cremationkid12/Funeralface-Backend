@@ -15,8 +15,6 @@ type JwtPayload = {
   org_id?: string;
 };
 
-const DEFAULT_JWT_SECRET = "dev-secret";
-
 export function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
 
@@ -29,7 +27,14 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
   }
 
   const token = authHeader.slice("Bearer ".length);
-  const secret = process.env.JWT_SECRET ?? DEFAULT_JWT_SECRET;
+  const secret = process.env.JWT_SECRET;
+  if (!secret || !secret.trim()) {
+    res.status(503).json({
+      code: "auth_not_configured",
+      message: "Authentication is not configured (JWT_SECRET missing).",
+    });
+    return;
+  }
 
   try {
     const decoded = jwt.verify(token, secret) as JwtPayload;
