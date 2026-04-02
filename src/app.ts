@@ -28,8 +28,14 @@ import {
 } from "./services/assignmentService";
 import { createPublicTokenRateLimit } from "./middleware/publicTokenRateLimit";
 import { defaultFamilyTokenService, type FamilyTokenService } from "./services/familyTokenService";
+import {
+  AuthNotConfiguredError,
+  defaultAuthService,
+  type AuthService,
+} from "./services/authService";
 
 export type AppDependencies = {
+  authService?: AuthService;
   inviteUserByEmail?: (email: string) => Promise<void>;
   settingsService?: SettingsService;
   staffService?: StaffService;
@@ -44,6 +50,7 @@ export function createApp(deps: AppDependencies = {}): Express {
   app.use(express.json());
 
   const inviteUserByEmail = deps.inviteUserByEmail ?? defaultInviteUserByEmail;
+  const authService = deps.authService ?? defaultAuthService;
   const settingsService = deps.settingsService ?? defaultSettingsService;
   const staffService = deps.staffService ?? defaultStaffService;
   const assignmentService = deps.assignmentService ?? defaultAssignmentService;
@@ -65,6 +72,104 @@ export function createApp(deps: AppDependencies = {}): Express {
       role: req.auth?.role,
       org_id: req.auth?.orgId,
     });
+  });
+
+  app.post("/v1/auth/register", async (req: Request, res: Response) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    if (!email || !isValidEmail(email) || password.length < 8) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "Valid email and password (min 8 chars) are required.",
+      });
+      return;
+    }
+    try {
+      const data = await authService.register(email, password);
+      res.status(201).json(data);
+    } catch (error) {
+      if (error instanceof AuthNotConfiguredError) {
+        res.status(503).json({ code: "service_unavailable", message: error.message });
+        return;
+      }
+      res.status(400).json({
+        code: "auth_failed",
+        message: error instanceof Error ? error.message : "Register failed.",
+      });
+    }
+  });
+
+  app.post("/v1/auth/login", async (req: Request, res: Response) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    if (!email || !isValidEmail(email) || !password) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "Valid email and password are required.",
+      });
+      return;
+    }
+    try {
+      const data = await authService.login(email, password);
+      res.status(200).json(data);
+    } catch (error) {
+      if (error instanceof AuthNotConfiguredError) {
+        res.status(503).json({ code: "service_unavailable", message: error.message });
+        return;
+      }
+      res.status(401).json({
+        code: "unauthorized",
+        message: error instanceof Error ? error.message : "Login failed.",
+      });
+    }
+  });
+
+  app.post("/v1/auth/refresh", async (req: Request, res: Response) => {
+    const refreshToken = typeof req.body?.refresh_token === "string" ? req.body.refresh_token.trim() : "";
+    if (!refreshToken) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "refresh_token is required.",
+      });
+      return;
+    }
+    try {
+      const data = await authService.refresh(refreshToken);
+      res.status(200).json(data);
+    } catch (error) {
+      if (error instanceof AuthNotConfiguredError) {
+        res.status(503).json({ code: "service_unavailable", message: error.message });
+        return;
+      }
+      res.status(401).json({
+        code: "unauthorized",
+        message: error instanceof Error ? error.message : "Refresh failed.",
+      });
+    }
+  });
+
+  app.post("/v1/auth/logout", async (req: Request, res: Response) => {
+    const accessToken = typeof req.body?.access_token === "string" ? req.body.access_token.trim() : "";
+    if (!accessToken) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "access_token is required.",
+      });
+      return;
+    }
+    try {
+      await authService.logout(accessToken);
+      res.status(204).send();
+    } catch (error) {
+      if (error instanceof AuthNotConfiguredError) {
+        res.status(503).json({ code: "service_unavailable", message: error.message });
+        return;
+      }
+      res.status(400).json({
+        code: "auth_failed",
+        message: error instanceof Error ? error.message : "Logout failed.",
+      });
+    }
   });
 
   app.post(
