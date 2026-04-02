@@ -30,14 +30,18 @@ export type ListStaffInput = {
 
 export type StaffService = {
   listByOrgId: (orgId: string, input: ListStaffInput) => Promise<StaffMemberRecord[]>;
-  createByOrgId: (orgId: string, input: StaffCreateInput) => Promise<StaffMemberRecord>;
+  createByOrgId: (
+    orgId: string,
+    input: StaffCreateInput,
+    actorUserId: string,
+  ) => Promise<StaffMemberRecord>;
   updateByOrgIdAndId: (
     orgId: string,
     id: string,
     input: StaffUpdateInput,
     actorUserId: string,
   ) => Promise<StaffMemberRecord | null>;
-  deleteByOrgIdAndId: (orgId: string, id: string) => Promise<boolean>;
+  deleteByOrgIdAndId: (orgId: string, id: string, actorUserId: string) => Promise<boolean>;
 };
 
 let pgPool: Pool | null = null;
@@ -80,7 +84,7 @@ export const defaultStaffService: StaffService = {
     return result.rows;
   },
 
-  async createByOrgId(orgId, input) {
+  async createByOrgId(orgId, input, actorUserId) {
     const pool = getPgPool();
     const result = await pool.query<StaffMemberRecord>(
       `
@@ -99,7 +103,31 @@ export const defaultStaffService: StaffService = {
       ],
     );
 
-    return result.rows[0];
+    const created = result.rows[0];
+    await pool.query(
+      `
+      INSERT INTO staff_audit_logs (
+        id,
+        staff_member_id,
+        org_id,
+        action,
+        to_role,
+        to_active,
+        changed_by_user_id
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `,
+      [
+        randomUUID(),
+        created.id,
+        orgId,
+        "created",
+        created.role,
+        created.active,
+        actorUserId,
+      ],
+    );
+    return created;
   },
 
   async updateByOrgIdAndId(orgId, id, input, actorUserId) {
@@ -193,8 +221,20 @@ export const defaultStaffService: StaffService = {
     return result.rows[0];
   },
 
-  async deleteByOrgIdAndId(orgId, id) {
+  async deleteByOrgIdAndId(orgId, id, actorUserId) {
     const pool = getPgPool();
+    const existing = await pool.query<Pick<StaffMemberRecord, "id" | "role" | "active">>(
+      `
+      SELECT id, role, active
+      FROM staff_members
+      WHERE org_id = $1 AND id = $2
+      LIMIT 1
+      `,
+      [orgId, id],
+    );
+
+    const current = existing.rows[0];
+
     const result = await pool.query(
       `
       DELETE FROM staff_members
@@ -202,7 +242,35 @@ export const defaultStaffService: StaffService = {
       `,
       [orgId, id],
     );
-    return (result.rowCount ?? 0) > 0;
+
+    const deleted = (result.rowCount ?? 0) > 0;
+    if (deleted && current) {
+      await pool.query(
+        `
+        INSERT INTO staff_audit_logs (
+          id,
+          staff_member_id,
+          org_id,
+          action,
+          from_role,
+          from_active,
+          changed_by_user_id
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7)
+        `,
+        [
+          randomUUID(),
+          id,
+          orgId,
+          "deleted",
+          current.role,
+          current.active,
+          actorUserId,
+        ],
+      );
+    }
+
+    return deleted;
   },
 };
 

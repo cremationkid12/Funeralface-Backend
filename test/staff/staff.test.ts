@@ -30,7 +30,7 @@ function createInMemoryStaffService(): StaffService {
       return items;
     },
 
-    async createByOrgId(orgId, input) {
+    async createByOrgId(orgId, input, _actorUserId) {
       const item: StaffMemberRecord = {
         id: `staff-${counter++}`,
         org_id: orgId,
@@ -58,7 +58,7 @@ function createInMemoryStaffService(): StaffService {
       return updated;
     },
 
-    async deleteByOrgIdAndId(orgId, id) {
+    async deleteByOrgIdAndId(orgId, id, _actorUserId) {
       const items = listFor(orgId);
       const next = items.filter((i) => i.id !== id);
       if (next.length === items.length) return false;
