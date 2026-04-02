@@ -54,6 +54,92 @@ paths:
                 $ref: '#/components/schemas/AuthMeResponse'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user account
+      operationId: postAuthRegister
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthCredentialsRequest'
+      responses:
+        '201':
+          description: Account created (session may be null if email confirmation is required)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '503':
+          description: Auth service not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with email and password
+      operationId: postAuthLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthCredentialsRequest'
+      responses:
+        '200':
+          description: Authenticated session payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      operationId: postAuthRefresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRefreshRequest'
+      responses:
+        '200':
+          description: Refreshed session payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout current access token session
+      operationId: postAuthLogout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLogoutRequest'
+      responses:
+        '204':
+          description: Logout accepted
+        '400':
+          $ref: '#/components/responses/BadRequestError'
   /v1/staff/invite:
     post:
       tags: [Staff]
@@ -386,6 +472,41 @@ components:
         role:
           type: string
         org_id:
+          type: string
+    AuthCredentialsRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+    AuthSessionResponse:
+      type: object
+      required: [user_id, access_token, refresh_token]
+      properties:
+        user_id:
+          type: string
+          nullable: true
+        access_token:
+          type: string
+          nullable: true
+        refresh_token:
+          type: string
+          nullable: true
+    AuthRefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+    AuthLogoutRequest:
+      type: object
+      required: [access_token]
+      properties:
+        access_token:
           type: string
     StaffInviteRequest:
       type: object
