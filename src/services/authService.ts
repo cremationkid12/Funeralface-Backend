@@ -30,6 +30,7 @@ export type AuthService = {
   login(email: string, password: string): Promise<LoginResult>;
   refresh(refreshToken: string): Promise<RefreshResult>;
   logout(accessToken: string): Promise<void>;
+  recoverPassword(email: string): Promise<void>;
 };
 
 function getAuthClient() {
@@ -90,6 +91,12 @@ export const defaultAuthService: AuthService = {
     const client = getAuthClient();
     void accessToken;
     const { error } = await client.auth.signOut();
+    if (error) throw error;
+  },
+
+  async recoverPassword(email: string): Promise<void> {
+    const client = getAuthClient();
+    const { error } = await client.auth.resetPasswordForEmail(email);
     if (error) throw error;
   },
 };

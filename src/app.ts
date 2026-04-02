@@ -172,6 +172,33 @@ export function createApp(deps: AppDependencies = {}): Express {
     }
   });
 
+  app.post("/v1/auth/password/recover", async (req: Request, res: Response) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+    if (!email || !isValidEmail(email)) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "A valid email address is required.",
+      });
+      return;
+    }
+    try {
+      await authService.recoverPassword(email);
+      res.status(202).json({
+        status: "recovery_requested",
+        email,
+      });
+    } catch (error) {
+      if (error instanceof AuthNotConfiguredError) {
+        res.status(503).json({ code: "service_unavailable", message: error.message });
+        return;
+      }
+      res.status(400).json({
+        code: "auth_failed",
+        message: error instanceof Error ? error.message : "Password recovery failed.",
+      });
+    }
+  });
+
   app.post(
     "/v1/staff/invite",
     requireAuth,

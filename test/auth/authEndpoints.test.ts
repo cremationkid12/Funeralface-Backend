@@ -27,6 +27,7 @@ const fakeAuthService: AuthService = {
     };
   },
   async logout(_accessToken) {},
+  async recoverPassword(_email) {},
 };
 
 test("POST /v1/auth/register validates body", async () => {
@@ -64,4 +65,19 @@ test("POST /v1/auth/logout returns 204", async () => {
   const app = createApp({ authService: fakeAuthService });
   const res = await request(app).post("/v1/auth/logout").send({ access_token: "at-login" });
   assert.equal(res.status, 204);
+});
+
+test("POST /v1/auth/password/recover validates body", async () => {
+  const app = createApp({ authService: fakeAuthService });
+  const res = await request(app).post("/v1/auth/password/recover").send({ email: "bad" });
+  assert.equal(res.status, 400);
+});
+
+test("POST /v1/auth/password/recover returns 202", async () => {
+  const app = createApp({ authService: fakeAuthService });
+  const res = await request(app)
+    .post("/v1/auth/password/recover")
+    .send({ email: "user@example.com" });
+  assert.equal(res.status, 202);
+  assert.equal(res.body.status, "recovery_requested");
 });
