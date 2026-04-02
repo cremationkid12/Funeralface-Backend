@@ -8,6 +8,7 @@ export type StaffMemberRecord = {
   phone: string;
   email: string | null;
   role: string;
+  active: boolean;
   created_at?: string;
 };
 
@@ -16,6 +17,7 @@ export type StaffCreateInput = {
   phone: string;
   email?: string | null;
   role?: string;
+  active?: boolean;
 };
 
 export type StaffUpdateInput = Partial<StaffCreateInput>;
@@ -29,7 +31,12 @@ export type ListStaffInput = {
 export type StaffService = {
   listByOrgId: (orgId: string, input: ListStaffInput) => Promise<StaffMemberRecord[]>;
   createByOrgId: (orgId: string, input: StaffCreateInput) => Promise<StaffMemberRecord>;
-  updateByOrgIdAndId: (orgId: string, id: string, input: StaffUpdateInput) => Promise<StaffMemberRecord | null>;
+  updateByOrgIdAndId: (
+    orgId: string,
+    id: string,
+    input: StaffUpdateInput,
+    actorUserId: string,
+  ) => Promise<StaffMemberRecord | null>;
   deleteByOrgIdAndId: (orgId: string, id: string) => Promise<boolean>;
 };
 
@@ -61,7 +68,7 @@ export const defaultStaffService: StaffService = {
 
     const result = await pool.query<StaffMemberRecord>(
       `
-      SELECT id, org_id, name, phone, email, role, created_at
+      SELECT id, org_id, name, phone, email, role, active, created_at
       FROM staff_members
       WHERE org_id = $1
       ORDER BY created_at ${sort}
@@ -78,8 +85,8 @@ export const defaultStaffService: StaffService = {
     const result = await pool.query<StaffMemberRecord>(
       `
       INSERT INTO staff_members (id, org_id, name, phone, email, role)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, org_id, name, phone, email, role, created_at
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, org_id, name, phone, email, role, active, created_at
       `,
       [
         randomUUID(),
@@ -88,17 +95,18 @@ export const defaultStaffService: StaffService = {
         input.phone.trim(),
         input.email?.trim() || null,
         normalizeRole(input.role),
+        input.active ?? true,
       ],
     );
 
     return result.rows[0];
   },
 
-  async updateByOrgIdAndId(orgId, id, input) {
+  async updateByOrgIdAndId(orgId, id, input, actorUserId) {
     const pool = getPgPool();
     const existing = await pool.query<StaffMemberRecord>(
       `
-      SELECT id, org_id, name, phone, email, role, created_at
+      SELECT id, org_id, name, phone, email, role, active, created_at
       FROM staff_members
       WHERE org_id = $1 AND id = $2
       LIMIT 1
@@ -109,6 +117,11 @@ export const defaultStaffService: StaffService = {
     const current = existing.rows[0];
     if (!current) return null;
 
+    const nextRole = normalizeRole(input.role ?? current.role);
+    const nextActive = input.active ?? current.active;
+    const roleChanged = nextRole !== current.role;
+    const activeChanged = nextActive !== current.active;
+
     const result = await pool.query<StaffMemberRecord>(
       `
       UPDATE staff_members
@@ -117,9 +130,10 @@ export const defaultStaffService: StaffService = {
         phone = $4,
         email = $5,
         role = $6,
+        active = $7,
         updated_at = NOW()
       WHERE org_id = $1 AND id = $2
-      RETURNING id, org_id, name, phone, email, role, created_at
+      RETURNING id, org_id, name, phone, email, role, active, created_at
       `,
       [
         orgId,
@@ -127,9 +141,54 @@ export const defaultStaffService: StaffService = {
         input.name?.trim() || current.name,
         input.phone?.trim() || current.phone,
         input.email !== undefined ? (input.email?.trim() || null) : current.email,
-        normalizeRole(input.role ?? current.role),
+        nextRole,
+        nextActive,
       ],
     );
+
+    if (roleChanged) {
+      await pool.query(
+        `
+        INSERT INTO staff_audit_logs (
+          id,
+          staff_member_id,
+          org_id,
+          action,
+          from_role,
+          to_role,
+          changed_by_user_id
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7)
+        `,
+        [randomUUID(), id, orgId, "role_updated", current.role, nextRole, actorUserId],
+      );
+    }
+
+    if (activeChanged) {
+      await pool.query(
+        `
+        INSERT INTO staff_audit_logs (
+          id,
+          staff_member_id,
+          org_id,
+          action,
+          from_active,
+          to_active,
+          changed_by_user_id
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7)
+        `,
+        [
+          randomUUID(),
+          id,
+          orgId,
+          nextActive ? "activated" : "deactivated",
+          current.active,
+          nextActive,
+          actorUserId,
+        ],
+      );
+    }
 
     return result.rows[0];
   },

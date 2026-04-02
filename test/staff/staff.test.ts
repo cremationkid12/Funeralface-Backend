@@ -11,6 +11,10 @@ function makeToken(orgId: string): string {
   return jwt.sign({ sub: "user-1", role: "admin", org_id: orgId }, JWT_SECRET);
 }
 
+function makeUserToken(orgId: string): string {
+  return jwt.sign({ sub: "user-1", role: "user", org_id: orgId }, JWT_SECRET);
+}
+
 function createInMemoryStaffService(): StaffService {
   const data = new Map<string, StaffMemberRecord[]>();
   let counter = 1;
@@ -34,12 +38,13 @@ function createInMemoryStaffService(): StaffService {
         phone: input.phone,
         email: input.email ?? null,
         role: input.role ?? "user",
+        active: input.active ?? true,
       };
       data.set(orgId, [...listFor(orgId), item]);
       return item;
     },
 
-    async updateByOrgIdAndId(orgId, id, input) {
+    async updateByOrgIdAndId(orgId, id, input, _actorUserId) {
       const items = listFor(orgId);
       const idx = items.findIndex((i) => i.id === id);
       if (idx < 0) return null;
@@ -156,5 +161,43 @@ test("PATCH /v1/staff/:id returns 404 for cross-org access", async () => {
     .send({ phone: "555-4999" } satisfies StaffUpdateInput);
 
   assert.equal(updateRes.status, 404);
+});
+
+test("GET /v1/staff returns 403 for non-admin", async () => {
+  const app = createApp({ staffService: createInMemoryStaffService() });
+  const response = await request(app).get("/v1/staff").set("Authorization", `Bearer ${makeUserToken("org-1")}`);
+  assert.equal(response.status, 403);
+});
+
+test("POST /v1/staff/:id/deactivate toggles active to false", async () => {
+  const app = createApp({ staffService: createInMemoryStaffService() });
+
+  const createRes = await request(app)
+    .post("/v1/staff")
+    .set("Authorization", `Bearer ${makeToken("org-1")}`)
+    .send({ name: "Eve", phone: "555-5000" } satisfies StaffCreateInput);
+
+  const deactivateRes = await request(app)
+    .post(`/v1/staff/${createRes.body.id}/deactivate`)
+    .set("Authorization", `Bearer ${makeToken("org-1")}`);
+
+  assert.equal(deactivateRes.status, 200);
+  assert.equal(deactivateRes.body.active, false);
+});
+
+test("POST /v1/staff/:id/activate toggles active to true", async () => {
+  const app = createApp({ staffService: createInMemoryStaffService() });
+
+  const createRes = await request(app)
+    .post("/v1/staff")
+    .set("Authorization", `Bearer ${makeToken("org-1")}`)
+    .send({ name: "Frank", phone: "555-6000", active: false } satisfies StaffCreateInput);
+
+  const activateRes = await request(app)
+    .post(`/v1/staff/${createRes.body.id}/activate`)
+    .set("Authorization", `Bearer ${makeToken("org-1")}`);
+
+  assert.equal(activateRes.status, 200);
+  assert.equal(activateRes.body.active, true);
 });
 

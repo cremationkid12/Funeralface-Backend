@@ -363,6 +363,56 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /v1/staff/{id}/activate:
+    post:
+      tags: [Staff]
+      summary: Activate staff member
+      description: Marks a staff member as active (admin-only).
+      operationId: activateStaffById
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Staff member activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMember'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /v1/staff/{id}/deactivate:
+    post:
+      tags: [Staff]
+      summary: Deactivate staff member
+      description: Marks a staff member as inactive (admin-only).
+      operationId: deactivateStaffById
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Staff member deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMember'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
   /v1/assignments:
     get:
       tags: [Assignments]
@@ -601,7 +651,7 @@ components:
           type: string
     StaffMember:
       type: object
-      required: [id, name, phone]
+      required: [id, name, phone, active]
       properties:
         id:
           type: string
@@ -609,6 +659,8 @@ components:
           type: string
         phone:
           type: string
+        active:
+          type: boolean
         email:
           type: string
           nullable: true
@@ -630,6 +682,8 @@ components:
           type: string
         role:
           type: string
+        active:
+          type: boolean
     StaffUpdateRequest:
       type: object
       properties:
@@ -641,6 +695,8 @@ components:
           type: string
         role:
           type: string
+        active:
+          type: boolean
     PickupAssignment:
       type: object
       required: [id, decedent_name, status]
