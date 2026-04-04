@@ -54,6 +54,37 @@ paths:
                 $ref: '#/components/schemas/AuthMeResponse'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /v1/auth/ensure-provisioned:
+    post:
+      tags: [Auth]
+      summary: Ensure org and staff row for Supabase user
+      description: >-
+        Validates the Supabase access token and creates org, settings, and admin staff row when missing.
+        Call after mobile-only Supabase sign-in (the app does not use POST /v1/auth/login).
+      operationId: postAuthEnsureProvisioned
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User is provisioned (existing or newly created)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnsureProvisionedResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          description: Provisioning failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Database not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/auth/register:
     post:
       tags: [Auth]
@@ -549,6 +580,14 @@ components:
           type: string
         org_id:
           type: string
+    EnsureProvisionedResponse:
+      type: object
+      required: [org_id, role]
+      properties:
+        org_id:
+          type: string
+        role:
+          type: string
     AuthCredentialsRequest:
       type: object
       required: [email, password]
@@ -723,6 +762,24 @@ components:
         created_at:
           type: string
           format: date-time
+        share_token:
+          type: string
+          nullable: true
+          description: Opaque family link token when an active link exists.
+        share_token_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        share_token_revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+        share_token_consumed_at:
+          type: string
+          format: date-time
+          nullable: true
+        share_token_one_time:
+          type: boolean
     AssignmentCreateRequest:
       type: object
       required: [decedent_name, pickup_address, contact_name, contact_phone]

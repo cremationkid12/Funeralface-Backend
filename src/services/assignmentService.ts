@@ -23,6 +23,12 @@ export type PickupAssignmentRecord = {
   assigned_staff_id: string | null;
   status: AssignmentStatus;
   created_at?: string;
+  /** Present in staff API responses when loaded from DB; null when no active link. */
+  share_token?: string | null;
+  share_token_expires_at?: string | null;
+  share_token_revoked_at?: string | null;
+  share_token_consumed_at?: string | null;
+  share_token_one_time?: boolean;
 };
 
 export type AssignmentCreateInput = {
@@ -124,7 +130,12 @@ export const defaultAssignmentService: AssignmentService = {
       `
       SELECT
         id, org_id, decedent_name, pickup_address, contact_name, contact_phone,
-        notes, assigned_staff_id, status, created_at
+        notes, assigned_staff_id, status, created_at,
+        share_token,
+        share_token_expires_at,
+        share_token_revoked_at,
+        share_token_consumed_at,
+        share_token_one_time
       FROM pickup_assignments
       WHERE org_id = $1
       ORDER BY created_at ${direction}
@@ -153,7 +164,12 @@ export const defaultAssignmentService: AssignmentService = {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       RETURNING
         id, org_id, decedent_name, pickup_address, contact_name, contact_phone,
-        notes, assigned_staff_id, status, created_at
+        notes, assigned_staff_id, status, created_at,
+        share_token,
+        share_token_expires_at,
+        share_token_revoked_at,
+        share_token_consumed_at,
+        share_token_one_time
       `,
       [
         randomUUID(),
@@ -255,7 +271,12 @@ export const defaultAssignmentService: AssignmentService = {
       WHERE org_id = $1 AND id = $2
       RETURNING
         id, org_id, decedent_name, pickup_address, contact_name, contact_phone,
-        notes, assigned_staff_id, status, created_at
+        notes, assigned_staff_id, status, created_at,
+        share_token,
+        share_token_expires_at,
+        share_token_revoked_at,
+        share_token_consumed_at,
+        share_token_one_time
       `,
       [
         orgId,

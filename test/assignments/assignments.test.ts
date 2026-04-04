@@ -50,6 +50,11 @@ function createInMemoryAssignmentService() {
         notes: input.notes ?? null,
         assigned_staff_id: input.assigned_staff_id ?? null,
         status: (input.status ?? "pending") as AssignmentStatus,
+        share_token: null,
+        share_token_expires_at: null,
+        share_token_revoked_at: null,
+        share_token_consumed_at: null,
+        share_token_one_time: false,
       };
       data.set(orgId, [...listFor(orgId), item]);
       return item;
@@ -71,9 +76,12 @@ function createInMemoryAssignmentService() {
         throw err;
       }
 
+      const patch = Object.fromEntries(
+        Object.entries(input).filter(([, v]) => v !== undefined),
+      ) as Partial<PickupAssignmentRecord>;
       const next: PickupAssignmentRecord = {
         ...current,
-        ...input,
+        ...patch,
         status: nextStatus,
       };
       const arr = [...items];
