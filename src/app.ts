@@ -1,6 +1,7 @@
 import express from "express";
 import type { Express, Request, RequestHandler, Response } from "express";
 import { requireAuth, type AuthenticatedRequest } from "./auth/authMiddleware";
+import { getUserFromSupabaseAccessToken } from "./auth/supabaseAccessTokenUser";
 import { requireRole } from "./auth/requireRole";
 import {
   defaultInviteUserByEmail,
@@ -74,6 +75,37 @@ export function createApp(deps: AppDependencies = {}): Express {
     });
   });
 
+  app.post("/v1/auth/ensure-provisioned", async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+      res.status(401).json({ code: "unauthorized", message: "Bearer token is required." });
+      return;
+    }
+    const token = authHeader.slice("Bearer ".length).trim();
+    if (!token) {
+      res.status(401).json({ code: "unauthorized", message: "Bearer token is required." });
+      return;
+    }
+    const user = await getUserFromSupabaseAccessToken(token);
+    if (!user) {
+      res.status(401).json({ code: "unauthorized", message: "Invalid authentication token." });
+      return;
+    }
+    if (!process.env.DATABASE_URL?.trim()) {
+      res.status(503).json({ code: "service_unavailable", message: "Database is not configured." });
+      return;
+    }
+    try {
+      const row = await staffService.bootstrapOrgAndAdminForUser(user.id, user.email ?? "");
+      res.status(200).json({ org_id: row.org_id, role: row.role });
+    } catch (error) {
+      res.status(500).json({
+        code: "provision_failed",
+        message: error instanceof Error ? error.message : "Provisioning failed.",
+      });
+    }
+  });
+
   app.post("/v1/auth/register", async (req: Request, res: Response) => {
     const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
     const password = typeof req.body?.password === "string" ? req.body.password : "";
@@ -86,6 +118,13 @@ export function createApp(deps: AppDependencies = {}): Express {
     }
     try {
       const data = await authService.register(email, password);
+      if (
+        data.user_id &&
+        data.access_token &&
+        process.env.DATABASE_URL?.trim()
+      ) {
+        await staffService.bootstrapOrgAndAdminForUser(data.user_id, email);
+      }
       res.status(201).json(data);
     } catch (error) {
       if (error instanceof AuthNotConfiguredError) {
@@ -111,6 +150,9 @@ export function createApp(deps: AppDependencies = {}): Express {
     }
     try {
       const data = await authService.login(email, password);
+      if (process.env.DATABASE_URL?.trim()) {
+        await staffService.bootstrapOrgAndAdminForUser(data.user_id, email);
+      }
       res.status(200).json(data);
     } catch (error) {
       if (error instanceof AuthNotConfiguredError) {
