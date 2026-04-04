@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { defaultSettingsService } from "./settingsService";
 
 export type StaffMemberRecord = {
   id: string;
@@ -28,8 +29,12 @@ export type ListStaffInput = {
   pageSize?: number;
 };
 
+export type OrgRoleForUser = { org_id: string; role: string };
+
 export type StaffService = {
   listByOrgId: (orgId: string, input: ListStaffInput) => Promise<StaffMemberRecord[]>;
+  findOrgRoleByUserId: (userId: string) => Promise<OrgRoleForUser | null>;
+  bootstrapOrgAndAdminForUser: (userId: string, email: string) => Promise<OrgRoleForUser>;
   createByOrgId: (
     orgId: string,
     input: StaffCreateInput,
@@ -63,6 +68,66 @@ function normalizeRole(role?: string): string {
 }
 
 export const defaultStaffService: StaffService = {
+  async findOrgRoleByUserId(userId) {
+    const pool = getPgPool();
+    const result = await pool.query<OrgRoleForUser>(
+      `
+      SELECT org_id, role
+      FROM staff_members
+      WHERE id = $1 AND active = true
+      LIMIT 1
+      `,
+      [userId],
+    );
+    return result.rows[0] ?? null;
+  },
+
+  async bootstrapOrgAndAdminForUser(userId, email) {
+    const existing = await this.findOrgRoleByUserId(userId);
+    if (existing) return existing;
+
+    const pool = getPgPool();
+    const orgId = randomUUID();
+    const safeEmail = email.trim();
+    const displayName =
+      safeEmail.includes("@") ? safeEmail.split("@")[0]!.trim() || "Admin" : safeEmail || "Admin";
+
+    await defaultSettingsService.upsertByOrgId(orgId, {
+      funeral_home_name: displayName,
+      funeral_home_phone: "—",
+      funeral_home_address: "—",
+    });
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `
+        INSERT INTO staff_members (id, org_id, name, phone, email, role, active)
+        VALUES ($1, $2, $3, $4, $5, 'admin', true)
+        `,
+        [userId, orgId, displayName, "0000000000", safeEmail || null],
+      );
+      await client.query(
+        `
+        INSERT INTO staff_audit_logs (
+          id, staff_member_id, org_id, action, to_role, to_active, changed_by_user_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `,
+        [randomUUID(), userId, orgId, "created", "admin", true, userId],
+      );
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    return { org_id: orgId, role: "admin" };
+  },
+
   async listByOrgId(orgId, input) {
     const pool = getPgPool();
     const sort = input.sort === "-created_at" ? "DESC" : "ASC";
@@ -88,7 +153,7 @@ export const defaultStaffService: StaffService = {
     const pool = getPgPool();
     const result = await pool.query<StaffMemberRecord>(
       `
-      INSERT INTO staff_members (id, org_id, name, phone, email, role)
+      INSERT INTO staff_members (id, org_id, name, phone, email, role, active)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, org_id, name, phone, email, role, active, created_at
       `,
