@@ -1,0 +1,9 @@
+# Railway: compile TypeScript before `npm start`.
+# `NODE_ENV=production` installs omit devDependencies by default; TypeScript is required to build.
+[build]
+buildCommand = "npm ci --include=dev && npm run build"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/v1/health"
+healthcheckTimeout = 300
