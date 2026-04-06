@@ -1,9 +1,10 @@
-# Railway: compile TypeScript before `npm start`.
-# `NODE_ENV=production` installs omit devDependencies by default; TypeScript is required to build.
+# Use Docker so `dist/` is always produced in the same image that runs `node`.
+# (Railpack/Nixpacks may skip or not persist custom buildCommand in some setups.)
 [build]
-buildCommand = "npm ci --include=dev && npm run build"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "npm start"
+startCommand = "node dist/server.js"
 healthcheckPath = "/v1/health"
 healthcheckTimeout = 300
