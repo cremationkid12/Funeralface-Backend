@@ -1,0 +1,10 @@
+# Use Docker so `dist/` is always produced in the same image that runs `node`.
+# (Railpack/Nixpacks may skip or not persist custom buildCommand in some setups.)
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "node dist/server.js"
+healthcheckPath = "/v1/health"
+healthcheckTimeout = 300

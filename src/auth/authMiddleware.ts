@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import { defaultStaffService } from "../services/staffService";
+import { getUserFromSupabaseAccessToken } from "./supabaseAccessTokenUser";
 
 export type AuthenticatedRequest = Request & {
   auth?: {
@@ -15,9 +17,11 @@ type JwtPayload = {
   org_id?: string;
 };
 
-const DEFAULT_JWT_SECRET = "dev-secret";
-
-export function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+export async function requireAuth(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -28,16 +32,65 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
     return;
   }
 
-  const token = authHeader.slice("Bearer ".length);
-  const secret = process.env.JWT_SECRET ?? DEFAULT_JWT_SECRET;
+  const token = authHeader.slice("Bearer ".length).trim();
+  if (!token) {
+    res.status(401).json({
+      code: "unauthorized",
+      message: "Authentication is required.",
+    });
+    return;
+  }
 
   try {
-    const decoded = jwt.verify(token, secret) as JwtPayload;
-    const userId = decoded.sub;
-    const role = decoded.role ?? "user";
-    const orgId = decoded.org_id;
+    const header = jwt.decode(token, { complete: true })?.header;
+    const alg = header?.alg;
 
-    if (!userId || !orgId) {
+    const secret = process.env.JWT_SECRET?.trim();
+    if (alg === "HS256" && secret) {
+      const decoded = jwt.verify(token, secret) as JwtPayload;
+      const userId = decoded.sub;
+      const role = decoded.role ?? "user";
+      const orgId = decoded.org_id;
+
+      if (!userId || !orgId) {
+        res.status(401).json({
+          code: "unauthorized",
+          message: "Invalid authentication token.",
+        });
+        return;
+      }
+
+      req.auth = {
+        userId,
+        role,
+        orgId,
+      };
+      next();
+      return;
+    }
+
+    const user = await getUserFromSupabaseAccessToken(token);
+    if (user) {
+      const row = await defaultStaffService.findOrgRoleByUserId(user.id);
+      if (!row) {
+        res.status(401).json({
+          code: "unauthorized",
+          message:
+            "Account is not provisioned for this app. Sign out, sign in again, or register to create your organization.",
+        });
+        return;
+      }
+
+      req.auth = {
+        userId: user.id,
+        role: row.role,
+        orgId: row.org_id,
+      };
+      next();
+      return;
+    }
+
+    if (process.env.SUPABASE_URL?.trim() && process.env.SUPABASE_ANON_KEY?.trim()) {
       res.status(401).json({
         code: "unauthorized",
         message: "Invalid authentication token.",
@@ -45,13 +98,18 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
       return;
     }
 
-    req.auth = {
-      userId,
-      role,
-      orgId,
-    };
+    if (!secret) {
+      res.status(503).json({
+        code: "auth_not_configured",
+        message: "Authentication is not configured (JWT_SECRET missing).",
+      });
+      return;
+    }
 
-    next();
+    res.status(401).json({
+      code: "unauthorized",
+      message: "Invalid authentication token.",
+    });
   } catch {
     res.status(401).json({
       code: "unauthorized",

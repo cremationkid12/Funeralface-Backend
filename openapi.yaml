@@ -54,6 +54,118 @@ paths:
                 $ref: '#/components/schemas/AuthMeResponse'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+  /v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user account
+      operationId: postAuthRegister
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthCredentialsRequest'
+      responses:
+        '201':
+          description: Account created (session may be null if email confirmation is required)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '503':
+          description: Auth service not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with email and password
+      operationId: postAuthLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthCredentialsRequest'
+      responses:
+        '200':
+          description: Authenticated session payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      operationId: postAuthRefresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRefreshRequest'
+      responses:
+        '200':
+          description: Refreshed session payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout current access token session
+      operationId: postAuthLogout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLogoutRequest'
+      responses:
+        '204':
+          description: Logout accepted
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+  /v1/auth/password/recover:
+    post:
+      tags: [Auth]
+      summary: Send password recovery email
+      operationId: postAuthPasswordRecover
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRecoverPasswordRequest'
+      responses:
+        '202':
+          description: Password recovery requested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthRecoverPasswordResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '503':
+          description: Auth service not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/staff/invite:
     post:
       tags: [Staff]
@@ -99,6 +211,8 @@ paths:
       summary: Get funeral home settings
       description: Returns the current settings configured for the authenticated organization.
       operationId: getSettings
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Settings payload
@@ -113,6 +227,8 @@ paths:
       summary: Update funeral home settings
       description: Updates funeral home settings fields for the authenticated organization.
       operationId: patchSettings
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -136,6 +252,8 @@ paths:
       summary: List staff members
       description: Lists staff members for the authenticated organization.
       operationId: listStaff
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: sort
@@ -175,6 +293,8 @@ paths:
       summary: Create staff member
       description: Creates a new staff member record in the authenticated organization.
       operationId: createStaff
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -198,6 +318,8 @@ paths:
       summary: Update staff member
       description: Updates staff member profile fields by identifier.
       operationId: patchStaffById
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -226,6 +348,8 @@ paths:
       summary: Delete staff member
       description: Deletes a staff member by identifier for the authenticated organization.
       operationId: deleteStaffById
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -239,12 +363,64 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+  /v1/staff/{id}/activate:
+    post:
+      tags: [Staff]
+      summary: Activate staff member
+      description: Marks a staff member as active (admin-only).
+      operationId: activateStaffById
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Staff member activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMember'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /v1/staff/{id}/deactivate:
+    post:
+      tags: [Staff]
+      summary: Deactivate staff member
+      description: Marks a staff member as inactive (admin-only).
+      operationId: deactivateStaffById
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Staff member deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMember'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
   /v1/assignments:
     get:
       tags: [Assignments]
       summary: List pickup assignments
       description: Returns pickup assignments visible to the authenticated organization.
       operationId: listAssignments
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: sort
@@ -271,6 +447,8 @@ paths:
       summary: Create pickup assignment
       description: Creates a new pickup assignment entry.
       operationId: createAssignment
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -294,6 +472,8 @@ paths:
       summary: Update pickup assignment
       description: Updates pickup assignment data, including status transitions.
       operationId: patchAssignmentById
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -346,6 +526,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -363,6 +549,58 @@ components:
           type: string
         org_id:
           type: string
+    AuthCredentialsRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+    AuthSessionResponse:
+      type: object
+      required: [user_id, access_token, refresh_token]
+      properties:
+        user_id:
+          type: string
+          nullable: true
+        access_token:
+          type: string
+          nullable: true
+        refresh_token:
+          type: string
+          nullable: true
+    AuthRefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+    AuthLogoutRequest:
+      type: object
+      required: [access_token]
+      properties:
+        access_token:
+          type: string
+    AuthRecoverPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    AuthRecoverPasswordResponse:
+      type: object
+      required: [status, email]
+      properties:
+        status:
+          type: string
+          example: recovery_requested
+        email:
+          type: string
+          format: email
     StaffInviteRequest:
       type: object
       required: [email]
@@ -413,7 +651,7 @@ components:
           type: string
     StaffMember:
       type: object
-      required: [id, name, phone]
+      required: [id, name, phone, active]
       properties:
         id:
           type: string
@@ -421,6 +659,8 @@ components:
           type: string
         phone:
           type: string
+        active:
+          type: boolean
         email:
           type: string
           nullable: true
@@ -442,6 +682,8 @@ components:
           type: string
         role:
           type: string
+        active:
+          type: boolean
     StaffUpdateRequest:
       type: object
       properties:
@@ -453,6 +695,8 @@ components:
           type: string
         role:
           type: string
+        active:
+          type: boolean
     PickupAssignment:
       type: object
       required: [id, decedent_name, status]
@@ -513,6 +757,17 @@ components:
         status:
           type: string
           enum: [pending, assigned, en_route, arrived, completed, cancelled]
+        share_token:
+          type: string
+          nullable: true
+          description: Opaque family link token, or null to revoke the public link.
+        share_token_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        share_token_one_time:
+          type: boolean
+          description: When true, the first successful public GET consumes the token.
     FamilyAssignmentView:
       type: object
       required: [assignment_id, decedent_name, status]

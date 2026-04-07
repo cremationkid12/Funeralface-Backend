@@ -1,15 +1,49 @@
 import express from "express";
-import type { Express, Request, Response } from "express";
+import type { Express, Request, RequestHandler, Response } from "express";
 import { requireAuth, type AuthenticatedRequest } from "./auth/authMiddleware";
+import { getUserFromSupabaseAccessToken } from "./auth/supabaseAccessTokenUser";
 import { requireRole } from "./auth/requireRole";
 import {
   defaultInviteUserByEmail,
   InviteNotConfiguredError,
   isValidEmail,
 } from "./services/inviteStaff";
+import {
+  defaultSettingsService,
+  type SettingsService,
+  type SettingsUpdateInput,
+} from "./services/settingsService";
+import {
+  defaultStaffService,
+  type StaffCreateInput,
+  type StaffService,
+  type StaffUpdateInput,
+} from "./services/staffService";
+import {
+  defaultAssignmentService,
+  isAssignmentStatus,
+  type AssignmentCreateInput,
+  type AssignmentStatus,
+  type AssignmentService,
+  type AssignmentUpdateInput,
+} from "./services/assignmentService";
+import { createPublicTokenRateLimit } from "./middleware/publicTokenRateLimit";
+import { defaultFamilyTokenService, type FamilyTokenService } from "./services/familyTokenService";
+import {
+  AuthNotConfiguredError,
+  defaultAuthService,
+  type AuthService,
+} from "./services/authService";
 
 export type AppDependencies = {
+  authService?: AuthService;
   inviteUserByEmail?: (email: string) => Promise<void>;
+  settingsService?: SettingsService;
+  staffService?: StaffService;
+  assignmentService?: AssignmentService;
+  familyTokenService?: FamilyTokenService;
+  /** Override default in-memory rate limit (e.g. tests). */
+  publicTokenRateLimit?: RequestHandler;
 };
 
 export function createApp(deps: AppDependencies = {}): Express {
@@ -17,6 +51,17 @@ export function createApp(deps: AppDependencies = {}): Express {
   app.use(express.json());
 
   const inviteUserByEmail = deps.inviteUserByEmail ?? defaultInviteUserByEmail;
+  const authService = deps.authService ?? defaultAuthService;
+  const settingsService = deps.settingsService ?? defaultSettingsService;
+  const staffService = deps.staffService ?? defaultStaffService;
+  const assignmentService = deps.assignmentService ?? defaultAssignmentService;
+  const familyTokenService = deps.familyTokenService ?? defaultFamilyTokenService;
+  const publicTokenRateLimit =
+    deps.publicTokenRateLimit ??
+    createPublicTokenRateLimit({
+      windowMs: Number(process.env.PUBLIC_FAMILY_TOKEN_RATE_LIMIT_WINDOW_MS ?? 60_000),
+      max: Number(process.env.PUBLIC_FAMILY_TOKEN_RATE_LIMIT_MAX ?? 60),
+    });
 
   app.get("/v1/health", (_req: Request, res: Response) => {
     res.status(200).json({ status: "ok" });
@@ -28,6 +73,172 @@ export function createApp(deps: AppDependencies = {}): Express {
       role: req.auth?.role,
       org_id: req.auth?.orgId,
     });
+  });
+
+  app.post("/v1/auth/ensure-provisioned", async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+      res.status(401).json({ code: "unauthorized", message: "Bearer token is required." });
+      return;
+    }
+    const token = authHeader.slice("Bearer ".length).trim();
+    if (!token) {
+      res.status(401).json({ code: "unauthorized", message: "Bearer token is required." });
+      return;
+    }
+    const user = await getUserFromSupabaseAccessToken(token);
+    if (!user) {
+      res.status(401).json({ code: "unauthorized", message: "Invalid authentication token." });
+      return;
+    }
+    if (!process.env.DATABASE_URL?.trim()) {
+      res.status(503).json({ code: "service_unavailable", message: "Database is not configured." });
+      return;
+    }
+    try {
+      const row = await staffService.bootstrapOrgAndAdminForUser(user.id, user.email ?? "");
+      res.status(200).json({ org_id: row.org_id, role: row.role });
+    } catch (error) {
+      res.status(500).json({
+        code: "provision_failed",
+        message: error instanceof Error ? error.message : "Provisioning failed.",
+      });
+    }
+  });
+
+  app.post("/v1/auth/register", async (req: Request, res: Response) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    if (!email || !isValidEmail(email) || password.length < 8) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "Valid email and password (min 8 chars) are required.",
+      });
+      return;
+    }
+    try {
+      const data = await authService.register(email, password);
+      if (
+        data.user_id &&
+        data.access_token &&
+        process.env.DATABASE_URL?.trim()
+      ) {
+        await staffService.bootstrapOrgAndAdminForUser(data.user_id, email);
+      }
+      res.status(201).json(data);
+    } catch (error) {
+      if (error instanceof AuthNotConfiguredError) {
+        res.status(503).json({ code: "service_unavailable", message: error.message });
+        return;
+      }
+      res.status(400).json({
+        code: "auth_failed",
+        message: error instanceof Error ? error.message : "Register failed.",
+      });
+    }
+  });
+
+  app.post("/v1/auth/login", async (req: Request, res: Response) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    if (!email || !isValidEmail(email) || !password) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "Valid email and password are required.",
+      });
+      return;
+    }
+    try {
+      const data = await authService.login(email, password);
+      if (process.env.DATABASE_URL?.trim()) {
+        await staffService.bootstrapOrgAndAdminForUser(data.user_id, email);
+      }
+      res.status(200).json(data);
+    } catch (error) {
+      if (error instanceof AuthNotConfiguredError) {
+        res.status(503).json({ code: "service_unavailable", message: error.message });
+        return;
+      }
+      res.status(401).json({
+        code: "unauthorized",
+        message: error instanceof Error ? error.message : "Login failed.",
+      });
+    }
+  });
+
+  app.post("/v1/auth/refresh", async (req: Request, res: Response) => {
+    const refreshToken = typeof req.body?.refresh_token === "string" ? req.body.refresh_token.trim() : "";
+    if (!refreshToken) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "refresh_token is required.",
+      });
+      return;
+    }
+    try {
+      const data = await authService.refresh(refreshToken);
+      res.status(200).json(data);
+    } catch (error) {
+      if (error instanceof AuthNotConfiguredError) {
+        res.status(503).json({ code: "service_unavailable", message: error.message });
+        return;
+      }
+      res.status(401).json({
+        code: "unauthorized",
+        message: error instanceof Error ? error.message : "Refresh failed.",
+      });
+    }
+  });
+
+  app.post("/v1/auth/logout", async (req: Request, res: Response) => {
+    const accessToken = typeof req.body?.access_token === "string" ? req.body.access_token.trim() : "";
+    if (!accessToken) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "access_token is required.",
+      });
+      return;
+    }
+    try {
+      await authService.logout(accessToken);
+      res.status(204).send();
+    } catch (error) {
+      if (error instanceof AuthNotConfiguredError) {
+        res.status(503).json({ code: "service_unavailable", message: error.message });
+        return;
+      }
+      res.status(400).json({
+        code: "auth_failed",
+        message: error instanceof Error ? error.message : "Logout failed.",
+      });
+    }
+  });
+
+  app.post("/v1/auth/password/recover", async (req: Request, res: Response) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+    if (!email || !isValidEmail(email)) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "A valid email address is required.",
+      });
+      return;
+    }
+    try {
+      await authService.recoverPassword(email);
+      res.status(202).json({
+        status: "recovery_requested",
+        email,
+      });
+    } catch (error) {
+      if (error instanceof AuthNotConfiguredError) {
+        res.status(503).json({ code: "service_unavailable", message: error.message });
+        return;
+      }
+      res.status(400).json({
+        code: "auth_failed",
+        message: error instanceof Error ? error.message : "Password recovery failed.",
+      });
+    }
   });
 
   app.post(
@@ -66,6 +277,446 @@ export function createApp(deps: AppDependencies = {}): Express {
           message: error instanceof Error ? error.message : "Invite request failed.",
         });
       }
+    },
+  );
+
+  app.get("/v1/settings", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    const orgId = req.auth?.orgId;
+    if (!orgId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+
+    const settings = await settingsService.getByOrgId(orgId);
+    res.status(200).json(settings);
+  });
+
+  app.patch("/v1/settings", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    const orgId = req.auth?.orgId;
+    if (!orgId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+
+    const body = req.body as Record<string, unknown>;
+    const allowedKeys: (keyof SettingsUpdateInput)[] = [
+      "funeral_home_name",
+      "funeral_home_phone",
+      "funeral_home_address",
+      "logo_url",
+      "default_message",
+    ];
+
+    const update: SettingsUpdateInput = {};
+    for (const key of allowedKeys) {
+      const value = body[key];
+      if (typeof value === "string") {
+        update[key] = value;
+      } else if ((key === "logo_url" || key === "default_message") && value === null) {
+        update[key] = null;
+      }
+    }
+
+    if (Object.keys(update).length === 0) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "At least one valid settings field is required.",
+      });
+      return;
+    }
+
+    const updated = await settingsService.upsertByOrgId(orgId, update);
+    res.status(200).json(updated);
+  });
+
+  app.get("/v1/staff", requireAuth, requireRole("admin"), async (req: AuthenticatedRequest, res: Response) => {
+    const orgId = req.auth?.orgId;
+    if (!orgId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+
+    const sort = typeof req.query.sort === "string" ? req.query.sort : undefined;
+    const page = typeof req.query.page === "string" ? Number(req.query.page) : undefined;
+    const pageSize = typeof req.query.page_size === "string" ? Number(req.query.page_size) : undefined;
+
+    const items = await staffService.listByOrgId(orgId, { sort, page, pageSize });
+    res.status(200).json({ items });
+  });
+
+  app.post("/v1/staff", requireAuth, requireRole("admin"), async (req: AuthenticatedRequest, res: Response) => {
+    const orgId = req.auth?.orgId;
+    const actorUserId = req.auth?.userId;
+    if (!orgId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+    if (!actorUserId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+
+    const body = req.body as Record<string, unknown>;
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+    const email = typeof body.email === "string" ? body.email : null;
+    const role = typeof body.role === "string" ? body.role : undefined;
+    const active = typeof body.active === "boolean" ? body.active : undefined;
+
+    if (!name || !phone) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "Both name and phone are required.",
+      });
+      return;
+    }
+
+    const created = await staffService.createByOrgId(
+      orgId,
+      {
+        name,
+        phone,
+        email,
+        role,
+        active,
+      } satisfies StaffCreateInput,
+      actorUserId,
+    );
+    res.status(201).json(created);
+  });
+
+  app.patch("/v1/staff/:id", requireAuth, requireRole("admin"), async (req: AuthenticatedRequest, res: Response) => {
+    const orgId = req.auth?.orgId;
+    const actorUserId = req.auth?.userId;
+    if (!orgId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+    if (!actorUserId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const body = req.body as Record<string, unknown>;
+    const update: StaffUpdateInput = {};
+    if (typeof body.name === "string") update.name = body.name;
+    if (typeof body.phone === "string") update.phone = body.phone;
+    if (typeof body.email === "string" || body.email === null) update.email = body.email as string | null;
+    if (typeof body.role === "string") update.role = body.role;
+    if (typeof body.active === "boolean") update.active = body.active;
+
+    if (Object.keys(update).length === 0) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "At least one valid staff field is required.",
+      });
+      return;
+    }
+
+    const updated = await staffService.updateByOrgIdAndId(orgId, id, update, actorUserId);
+    if (!updated) {
+      res.status(404).json({
+        code: "not_found",
+        message: "Resource was not found.",
+      });
+      return;
+    }
+    res.status(200).json(updated);
+  });
+
+  app.delete("/v1/staff/:id", requireAuth, requireRole("admin"), async (req: AuthenticatedRequest, res: Response) => {
+    const orgId = req.auth?.orgId;
+    const actorUserId = req.auth?.userId;
+    if (!orgId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+    if (!actorUserId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const deleted = await staffService.deleteByOrgIdAndId(orgId, id, actorUserId);
+    if (!deleted) {
+      res.status(404).json({
+        code: "not_found",
+        message: "Resource was not found.",
+      });
+      return;
+    }
+
+    res.status(204).send();
+  });
+
+  app.post(
+    "/v1/staff/:id/activate",
+    requireAuth,
+    requireRole("admin"),
+    async (req: AuthenticatedRequest, res: Response) => {
+      const orgId = req.auth?.orgId;
+      const actorUserId = req.auth?.userId;
+      if (!orgId || !actorUserId) {
+        res.status(401).json({
+          code: "unauthorized",
+          message: "Authentication is required.",
+        });
+        return;
+      }
+
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const updated = await staffService.updateByOrgIdAndId(orgId, id, { active: true }, actorUserId);
+      if (!updated) {
+        res.status(404).json({
+          code: "not_found",
+          message: "Resource was not found.",
+        });
+        return;
+      }
+      res.status(200).json(updated);
+    },
+  );
+
+  app.post(
+    "/v1/staff/:id/deactivate",
+    requireAuth,
+    requireRole("admin"),
+    async (req: AuthenticatedRequest, res: Response) => {
+      const orgId = req.auth?.orgId;
+      const actorUserId = req.auth?.userId;
+      if (!orgId || !actorUserId) {
+        res.status(401).json({
+          code: "unauthorized",
+          message: "Authentication is required.",
+        });
+        return;
+      }
+
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const updated = await staffService.updateByOrgIdAndId(orgId, id, { active: false }, actorUserId);
+      if (!updated) {
+        res.status(404).json({
+          code: "not_found",
+          message: "Resource was not found.",
+        });
+        return;
+      }
+      res.status(200).json(updated);
+    },
+  );
+
+  app.get("/v1/assignments", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    const orgId = req.auth?.orgId;
+    if (!orgId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+    const sort = typeof req.query.sort === "string" ? req.query.sort : "-created_at";
+    const items = await assignmentService.listByOrgId(orgId, sort);
+    res.status(200).json({ items });
+  });
+
+  app.post("/v1/assignments", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    const orgId = req.auth?.orgId;
+    if (!orgId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+
+    const body = req.body as Record<string, unknown>;
+    const decedent_name = typeof body.decedent_name === "string" ? body.decedent_name : "";
+    const pickup_address = typeof body.pickup_address === "string" ? body.pickup_address : "";
+    const contact_name = typeof body.contact_name === "string" ? body.contact_name : "";
+    const contact_phone = typeof body.contact_phone === "string" ? body.contact_phone : "";
+    const notes = typeof body.notes === "string" ? body.notes : null;
+    const assigned_staff_id = typeof body.assigned_staff_id === "string" ? body.assigned_staff_id : null;
+    const rawStatus = typeof body.status === "string" ? body.status : undefined;
+    let status: AssignmentStatus | undefined;
+
+    if (!decedent_name || !pickup_address || !contact_name || !contact_phone) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "decedent_name, pickup_address, contact_name, and contact_phone are required.",
+      });
+      return;
+    }
+
+    if (rawStatus && !isAssignmentStatus(rawStatus)) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "Invalid assignment status.",
+      });
+      return;
+    }
+    if (rawStatus && isAssignmentStatus(rawStatus)) {
+      status = rawStatus;
+    }
+
+    const created = await assignmentService.createByOrgId(orgId, {
+      decedent_name,
+      pickup_address,
+      contact_name,
+      contact_phone,
+      notes,
+      assigned_staff_id,
+      status,
+    } satisfies AssignmentCreateInput);
+    res.status(201).json(created);
+  });
+
+  app.patch("/v1/assignments/:id", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    const orgId = req.auth?.orgId;
+    const actorUserId = req.auth?.userId;
+    if (!orgId || !actorUserId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
+
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const body = req.body as Record<string, unknown>;
+    const update: AssignmentUpdateInput = {};
+    if (typeof body.decedent_name === "string") update.decedent_name = body.decedent_name;
+    if (typeof body.pickup_address === "string") update.pickup_address = body.pickup_address;
+    if (typeof body.contact_name === "string") update.contact_name = body.contact_name;
+    if (typeof body.contact_phone === "string") update.contact_phone = body.contact_phone;
+    if (typeof body.notes === "string" || body.notes === null) update.notes = body.notes as string | null;
+    if (typeof body.assigned_staff_id === "string" || body.assigned_staff_id === null) {
+      update.assigned_staff_id = body.assigned_staff_id as string | null;
+    }
+    if (typeof body.status === "string") {
+      if (!isAssignmentStatus(body.status)) {
+        res.status(400).json({
+          code: "bad_request",
+          message: "Invalid assignment status.",
+        });
+        return;
+      }
+      update.status = body.status;
+    }
+
+    if ("share_token" in body) {
+      if (body.share_token === null) {
+        update.share_token = null;
+      } else if (typeof body.share_token === "string") {
+        const trimmed = body.share_token.trim();
+        update.share_token = trimmed.length === 0 ? null : trimmed;
+      }
+    }
+    if ("share_token_expires_at" in body) {
+      if (body.share_token_expires_at === null || body.share_token_expires_at === "") {
+        update.share_token_expires_at = null;
+      } else if (typeof body.share_token_expires_at === "string") {
+        update.share_token_expires_at = body.share_token_expires_at;
+      }
+    }
+    if (typeof body.share_token_one_time === "boolean") {
+      update.share_token_one_time = body.share_token_one_time;
+    }
+
+    if (Object.keys(update).length === 0) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "At least one valid assignment field is required.",
+      });
+      return;
+    }
+
+    try {
+      const updated = await assignmentService.updateByOrgIdAndId(orgId, id, update, actorUserId);
+      if (!updated) {
+        res.status(404).json({
+          code: "not_found",
+          message: "Resource was not found.",
+        });
+        return;
+      }
+      res.status(200).json(updated);
+    } catch (error) {
+      if (error instanceof Error && error.name === "InvalidStatusTransitionError") {
+        res.status(400).json({
+          code: "bad_request",
+          message: error.message,
+        });
+        return;
+      }
+      if (error instanceof Error && error.name === "InvalidShareTokenFieldsError") {
+        res.status(400).json({
+          code: "bad_request",
+          message: error.message,
+        });
+        return;
+      }
+      throw error;
+    }
+  });
+
+  app.get(
+    "/v1/public/assignments/by-token/:token",
+    publicTokenRateLimit,
+    async (req: Request, res: Response) => {
+      const raw = Array.isArray(req.params.token) ? req.params.token[0] : req.params.token;
+      const token = decodeURIComponent(raw ?? "").trim();
+      if (!token || token.length > 512) {
+        res.status(404).json({
+          code: "not_found",
+          message: "Resource was not found.",
+        });
+        return;
+      }
+
+      const outcome = await familyTokenService.resolveByToken(token);
+      if (outcome.type === "not_found") {
+        res.status(404).json({
+          code: "not_found",
+          message: "Resource was not found.",
+        });
+        return;
+      }
+      if (outcome.type === "expired") {
+        res.status(410).json({
+          code: "token_expired",
+          message: "This link has expired.",
+        });
+        return;
+      }
+      res.status(200).json(outcome.view);
     },
   );
 

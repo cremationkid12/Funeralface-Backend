@@ -30,6 +30,7 @@ test("migrations create core tables", async () => {
       "assignment_audit_logs",
       "pickup_assignments",
       "settings",
+      "staff_audit_logs",
       "staff_members",
     ]);
   } finally {
