@@ -325,7 +325,7 @@ export const defaultStaffService: StaffService = {
         `,
         [
           randomUUID(),
-          id,
+          null,
           orgId,
           "deleted",
           current.role,

@@ -14,6 +14,14 @@ export async function postStaffInvite(
 ): Promise<void> {
   const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
 
+  console.log("email", email);
+  console.log("isValidEmail", isValidEmail(email));
+  console.log("req.body", req.body);
+  console.log("req.auth", req.auth);
+  console.log("req.auth?.orgId", req.auth?.orgId);
+  console.log("req.auth?.userId", req.auth?.userId);
+  console.log("req.auth?.role", req.auth?.role);
+
   if (!email || !isValidEmail(email)) {
     res.status(400).json({
       code: "bad_request",
