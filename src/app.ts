@@ -28,6 +28,16 @@ export type AppDependencies = {
 export function createApp(deps: AppDependencies = {}): Express {
   const app = express();
   app.use(express.json());
+  app.use((req, res, next) => {
+    const start = process.hrtime.bigint();
+    res.on("finish", () => {
+      const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+      console.log(
+        `[API] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${durationMs.toFixed(1)}ms)`,
+      );
+    });
+    next();
+  });
 
   const services: AppServices = {
     inviteUserByEmail: deps.inviteUserByEmail ?? defaultInviteUserByEmail,
