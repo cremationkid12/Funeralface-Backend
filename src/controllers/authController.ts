@@ -43,7 +43,15 @@ export async function postEnsureProvisioned(
     return;
   }
   try {
-    const row = await staffService.bootstrapOrgAndAdminForUser(user.id, user.email ?? "");
+    const profileName =
+      user.user_metadata?.full_name?.toString().trim() ||
+      user.user_metadata?.name?.toString().trim() ||
+      "";
+    const row = await staffService.bootstrapOrgAndAdminForUser(
+      user.id,
+      user.email ?? "",
+      profileName,
+    );
     res.status(200).json({ org_id: row.org_id, role: row.role });
   } catch (error) {
     res.status(500).json({
@@ -58,19 +66,20 @@ export async function postRegister(
   res: Response,
   deps: AuthControllerDeps,
 ): Promise<void> {
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
   const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
-  if (!email || !isValidEmail(email) || password.length < 8) {
+  if (!name || !email || !isValidEmail(email) || password.length < 8) {
     res.status(400).json({
       code: "bad_request",
-      message: "Valid email and password (min 8 chars) are required.",
+      message: "Name, valid email, and password (min 8 chars) are required.",
     });
     return;
   }
   try {
     const data = await deps.authService.register(email, password);
     if (data.user_id && data.access_token && process.env.DATABASE_URL?.trim()) {
-      await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, email);
+      await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, email, name);
     }
     res.status(201).json(data);
   } catch (error) {

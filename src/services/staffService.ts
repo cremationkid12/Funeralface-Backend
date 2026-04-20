@@ -34,7 +34,11 @@ export type OrgRoleForUser = { org_id: string; role: string };
 export type StaffService = {
   listByOrgId: (orgId: string, input: ListStaffInput) => Promise<StaffMemberRecord[]>;
   findOrgRoleByUserId: (userId: string) => Promise<OrgRoleForUser | null>;
-  bootstrapOrgAndAdminForUser: (userId: string, email: string) => Promise<OrgRoleForUser>;
+  bootstrapOrgAndAdminForUser: (
+    userId: string,
+    email: string,
+    displayName?: string | null,
+  ) => Promise<OrgRoleForUser>;
   createByOrgId: (
     orgId: string,
     input: StaffCreateInput,
@@ -82,15 +86,19 @@ export const defaultStaffService: StaffService = {
     return result.rows[0] ?? null;
   },
 
-  async bootstrapOrgAndAdminForUser(userId, email) {
+  async bootstrapOrgAndAdminForUser(userId, email, displayNameInput) {
     const existing = await this.findOrgRoleByUserId(userId);
     if (existing) return existing;
 
     const pool = getPgPool();
     const orgId = randomUUID();
     const safeEmail = email.trim();
-    const displayName =
-      safeEmail.includes("@") ? safeEmail.split("@")[0]!.trim() || "Admin" : safeEmail || "Admin";
+    const safeDisplayName = displayNameInput?.trim() ?? "";
+    const displayName = safeDisplayName
+      ? safeDisplayName
+      : safeEmail.includes("@")
+        ? safeEmail.split("@")[0]!.trim() || "Admin"
+        : safeEmail || "Admin";
 
     await defaultSettingsService.upsertByOrgId(orgId, {
       funeral_home_name: displayName,
@@ -334,7 +342,6 @@ export const defaultStaffService: StaffService = {
         ],
       );
     }
-
     return deleted;
   },
 };
