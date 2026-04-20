@@ -19,6 +19,13 @@ const fakeAuthService: AuthService = {
       refresh_token: "rt-login",
     };
   },
+  async loginWithGoogle(_idToken) {
+    return {
+      user_id: "u-google",
+      access_token: "at-google",
+      refresh_token: "rt-google",
+    };
+  },
   async refresh(_refreshToken) {
     return {
       user_id: "u-refresh",
@@ -52,6 +59,13 @@ test("POST /v1/auth/login returns session payload", async () => {
     .send({ email: "user@example.com", password: "password123" });
   assert.equal(res.status, 200);
   assert.equal(res.body.access_token, "at-login");
+});
+
+test("POST /v1/auth/login/google returns session payload", async () => {
+  const app = createApp({ authService: fakeAuthService });
+  const res = await request(app).post("/v1/auth/login/google").send({ id_token: "google-id-token" });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.access_token, "at-google");
 });
 
 test("POST /v1/auth/refresh returns new tokens", async () => {

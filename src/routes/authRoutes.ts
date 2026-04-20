@@ -5,6 +5,7 @@ import type { AppServices } from "../appServices";
 import {
   getAuthMe,
   postEnsureProvisioned,
+  postGoogleLogin,
   postLogin,
   postLogout,
   postPasswordRecover,
@@ -28,6 +29,7 @@ export function createAuthRouter(services: AppServices): Router {
 
   router.post("/register", (req: Request, res: Response) => postRegister(req, res, authDeps));
   router.post("/login", (req: Request, res: Response) => postLogin(req, res, authDeps));
+  router.post("/login/google", (req: Request, res: Response) => postGoogleLogin(req, res, authDeps));
   router.post("/refresh", (req: Request, res: Response) =>
     postRefresh(req, res, services.authService),
   );

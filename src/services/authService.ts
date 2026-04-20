@@ -28,6 +28,7 @@ export type RefreshResult = {
 export type AuthService = {
   register(email: string, password: string): Promise<RegisterResult>;
   login(email: string, password: string): Promise<LoginResult>;
+  loginWithGoogle(idToken: string): Promise<LoginResult>;
   refresh(refreshToken: string): Promise<RefreshResult>;
   logout(accessToken: string): Promise<void>;
   recoverPassword(email: string): Promise<void>;
@@ -65,6 +66,23 @@ export const defaultAuthService: AuthService = {
     if (error) throw error;
     if (!data.user?.id || !data.session?.access_token || !data.session?.refresh_token) {
       throw new Error("Login did not return a complete auth session.");
+    }
+    return {
+      user_id: data.user.id,
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    };
+  },
+
+  async loginWithGoogle(idToken: string): Promise<LoginResult> {
+    const client = getAuthClient();
+    const { data, error } = await client.auth.signInWithIdToken({
+      provider: "google",
+      token: idToken,
+    });
+    if (error) throw error;
+    if (!data.user?.id || !data.session?.access_token || !data.session?.refresh_token) {
+      throw new Error("Google login did not return a complete auth session.");
     }
     return {
       user_id: data.user.id,

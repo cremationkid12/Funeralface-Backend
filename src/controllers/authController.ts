@@ -78,9 +78,11 @@ export async function postRegister(
       res.status(503).json({ code: "service_unavailable", message: error.message });
       return;
     }
-    res.status(400).json({
-      code: "auth_failed",
-      message: error instanceof Error ? error.message : "Register failed.",
+    const message = error instanceof Error ? error.message : "Register failed.";
+    const isRateLimited = /rate limit/i.test(message);
+    res.status(isRateLimited ? 429 : 400).json({
+      code: isRateLimited ? "rate_limited" : "auth_failed",
+      message,
     });
   }
 }
@@ -113,6 +115,37 @@ export async function postLogin(
     res.status(401).json({
       code: "unauthorized",
       message: error instanceof Error ? error.message : "Login failed.",
+    });
+  }
+}
+
+export async function postGoogleLogin(
+  req: Request,
+  res: Response,
+  deps: AuthControllerDeps,
+): Promise<void> {
+  const idToken = typeof req.body?.id_token === "string" ? req.body.id_token.trim() : "";
+  if (!idToken) {
+    res.status(400).json({
+      code: "bad_request",
+      message: "id_token is required.",
+    });
+    return;
+  }
+  try {
+    const data = await deps.authService.loginWithGoogle(idToken);
+    if (process.env.DATABASE_URL?.trim()) {
+      await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, "");
+    }
+    res.status(200).json(data);
+  } catch (error) {
+    if (error instanceof AuthNotConfiguredError) {
+      res.status(503).json({ code: "service_unavailable", message: error.message });
+      return;
+    }
+    res.status(401).json({
+      code: "unauthorized",
+      message: error instanceof Error ? error.message : "Google login failed.",
     });
   }
 }
