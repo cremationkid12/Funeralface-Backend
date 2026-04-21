@@ -1,5 +1,11 @@
 import sendgridMail from "@sendgrid/mail";
 
+export type InviteByEmailInput = {
+  email: string;
+  senderName?: string | null;
+  senderEmail?: string | null;
+};
+
 export class InviteNotConfiguredError extends Error {
   override name = "InviteNotConfiguredError";
 
@@ -30,10 +36,12 @@ function buildInviteEmailHtml(params: {
   inviteLink: string;
   fromName: string;
   inviteeEmail: string;
+  senderLabel: string;
 }): string {
   const safeInviteLink = escapeHtml(params.inviteLink);
   const safeFromName = escapeHtml(params.fromName);
   const safeInviteeEmail = escapeHtml(params.inviteeEmail);
+  const safeSenderLabel = escapeHtml(params.senderLabel);
   const year = new Date().getFullYear();
 
   return `<!doctype html>
@@ -68,6 +76,9 @@ function buildInviteEmailHtml(params: {
                 </p>
                 <p style="margin:0 0 14px 0;color:#1A1A1A;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;">
                   <strong>${safeInviteeEmail}</strong> has been invited to access <strong>${safeFromName}</strong>.
+                </p>
+                <p style="margin:0 0 14px 0;color:#1A1A1A;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;">
+                  Sent by: <strong>${safeSenderLabel}</strong>
                 </p>
                 <p style="margin:0 0 24px 0;color:#1A1A1A;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;">
                   Click the button below to create your account and get started.
@@ -109,6 +120,15 @@ function buildInviteEmailHtml(params: {
 </html>`;
 }
 
+function formatSenderLabel(senderName?: string | null, senderEmail?: string | null): string {
+  const name = senderName?.trim() ?? "";
+  const email = senderEmail?.trim() ?? "";
+  if (name && email) return `${name} (${email})`;
+  if (name) return name;
+  if (email) return email;
+  return "EverRoute Funeral Admin";
+}
+
 function getProviderErrorMessage(error: unknown): string {
   if (!(error instanceof Error)) {
     return "Invite provider request failed.";
@@ -123,11 +143,13 @@ function getProviderErrorMessage(error: unknown): string {
   return providerMessage || error.message || "Invite provider request failed.";
 }
 
-export async function defaultInviteUserByEmail(email: string): Promise<void> {
+export async function defaultInviteUserByEmail(input: InviteByEmailInput): Promise<void> {
+  const email = input.email.trim();
   const apiKey = process.env.SENDGRID_API_KEY?.trim();
   const fromEmail = process.env.INVITE_FROM_EMAIL?.trim();
   const fromName = process.env.INVITE_FROM_NAME?.trim() || "EverRoute Funeral";
   const inviteSignupUrl = process.env.INVITE_SIGNUP_URL?.trim();
+  const senderLabel = formatSenderLabel(input.senderName, input.senderEmail);
 
   if (!apiKey || !fromEmail || !inviteSignupUrl) {
     throw new InviteNotConfiguredError();
@@ -146,6 +168,7 @@ export async function defaultInviteUserByEmail(email: string): Promise<void> {
     `You are invited to join ${fromName}.`,
     "",
     `${email} has been invited to access ${fromName}.`,
+    `Sent by: ${senderLabel}`,
     "",
     `Accept invitation: ${inviteLink}`,
     "",
@@ -156,6 +179,7 @@ export async function defaultInviteUserByEmail(email: string): Promise<void> {
     inviteLink,
     fromName,
     inviteeEmail: email,
+    senderLabel,
   });
 
   try {

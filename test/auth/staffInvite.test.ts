@@ -49,8 +49,8 @@ test("POST /v1/staff/invite returns 400 for invalid email", async () => {
 test("POST /v1/staff/invite returns 202 when invite succeeds", async () => {
   process.env.JWT_SECRET = JWT_SECRET;
   const app = createApp({
-    inviteUserByEmail: async (email: string) => {
-      assert.equal(email, "staff@example.com");
+    inviteUserByEmail: async (input: { email: string }) => {
+      assert.equal(input.email, "staff@example.com");
     },
   });
 
@@ -70,7 +70,7 @@ test("POST /v1/staff/invite returns 202 when invite succeeds", async () => {
 test("POST /v1/staff/invite returns 502 when provider fails", async () => {
   process.env.JWT_SECRET = JWT_SECRET;
   const app = createApp({
-    inviteUserByEmail: async () => {
+    inviteUserByEmail: async (_input: { email: string }) => {
       throw new Error("duplicate user");
     },
   });

@@ -8,6 +8,8 @@ export type AuthenticatedRequest = Request & {
     userId: string;
     role: string;
     orgId: string;
+    email?: string;
+    name?: string;
   };
 };
 
@@ -15,6 +17,9 @@ type JwtPayload = {
   sub?: string;
   role?: string;
   org_id?: string;
+  email?: string;
+  name?: string;
+  full_name?: string;
 };
 
 export async function requireAuth(
@@ -64,6 +69,8 @@ export async function requireAuth(
         userId,
         role,
         orgId,
+        email: decoded.email,
+        name: decoded.full_name ?? decoded.name,
       };
       next();
       return;
@@ -85,6 +92,11 @@ export async function requireAuth(
         userId: user.id,
         role: row.role,
         orgId: row.org_id,
+        email: user.email ?? undefined,
+        name:
+          user.user_metadata?.full_name?.toString().trim() ||
+          user.user_metadata?.name?.toString().trim() ||
+          undefined,
       };
       next();
       return;

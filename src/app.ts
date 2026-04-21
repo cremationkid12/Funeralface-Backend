@@ -3,7 +3,7 @@ import type { Express, RequestHandler } from "express";
 import type { AppServices } from "./appServices";
 import { registerV1Routes } from "./routes";
 import { setupSwaggerUi } from "./swaggerUi";
-import { defaultInviteUserByEmail } from "./services/inviteStaff";
+import { defaultInviteUserByEmail, type InviteByEmailInput } from "./services/inviteStaff";
 import { defaultSettingsService, type SettingsService } from "./services/settingsService";
 import { defaultStaffService, type StaffService } from "./services/staffService";
 import {
@@ -16,7 +16,7 @@ import { defaultAuthService, type AuthService } from "./services/authService";
 
 export type AppDependencies = {
   authService?: AuthService;
-  inviteUserByEmail?: (email: string) => Promise<void>;
+  inviteUserByEmail?: (input: InviteByEmailInput) => Promise<void>;
   settingsService?: SettingsService;
   staffService?: StaffService;
   assignmentService?: AssignmentService;

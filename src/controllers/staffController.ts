@@ -1,6 +1,6 @@
 import type { Response } from "express";
 import type { AuthenticatedRequest } from "../auth/authMiddleware";
-import { InviteNotConfiguredError, isValidEmail } from "../services/inviteStaff";
+import { InviteNotConfiguredError, isValidEmail, type InviteByEmailInput } from "../services/inviteStaff";
 import type {
   StaffCreateInput,
   StaffService,
@@ -10,9 +10,11 @@ import type {
 export async function postStaffInvite(
   req: AuthenticatedRequest,
   res: Response,
-  inviteUserByEmail: (email: string) => Promise<void>,
+  inviteUserByEmail: (input: InviteByEmailInput) => Promise<void>,
 ): Promise<void> {
   const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+  const senderName = req.auth?.name;
+  const senderEmail = req.auth?.email;
 
   if (!email || !isValidEmail(email)) {
     res.status(400).json({
@@ -23,7 +25,11 @@ export async function postStaffInvite(
   }
 
   try {
-    await inviteUserByEmail(email);
+    await inviteUserByEmail({
+      email,
+      senderName: senderName || undefined,
+      senderEmail: senderEmail || undefined,
+    });
     res.status(202).json({
       status: "invited",
       email,
