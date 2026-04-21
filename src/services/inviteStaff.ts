@@ -75,7 +75,7 @@ function buildInviteEmailHtml(params: {
                   Hello,
                 </p>
                 <p style="margin:0 0 14px 0;color:#1A1A1A;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;">
-                  <strong>${safeInviteeEmail}</strong> has been invited to access <strong>${safeFromName}</strong>.
+                  You have been invited to access <strong>${safeFromName}</strong>.
                 </p>
                 <p style="margin:0 0 14px 0;color:#1A1A1A;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;">
                   Sent by: <strong>${safeSenderLabel}</strong>
