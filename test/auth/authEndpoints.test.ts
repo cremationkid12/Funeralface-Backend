@@ -37,23 +37,34 @@ const fakeAuthService: AuthService = {
   async recoverPassword(_email) {},
 };
 
+function createAuthAppForTests() {
+  return createApp({
+    authService: fakeAuthService,
+    staffService: {
+      async bootstrapOrgAndAdminForUser() {
+        return { org_id: "org-test", role: "admin" };
+      },
+    } as any,
+  });
+}
+
 test("POST /v1/auth/register validates body", async () => {
-  const app = createApp({ authService: fakeAuthService });
+  const app = createAuthAppForTests();
   const res = await request(app).post("/v1/auth/register").send({ email: "x", password: "123" });
   assert.equal(res.status, 400);
 });
 
 test("POST /v1/auth/register returns session payload", async () => {
-  const app = createApp({ authService: fakeAuthService });
+  const app = createAuthAppForTests();
   const res = await request(app)
     .post("/v1/auth/register")
-    .send({ email: "user@example.com", password: "password123" });
+    .send({ name: "Example User", email: "user@example.com", password: "password123" });
   assert.equal(res.status, 201);
   assert.equal(res.body.access_token, "at-register");
 });
 
 test("POST /v1/auth/login returns session payload", async () => {
-  const app = createApp({ authService: fakeAuthService });
+  const app = createAuthAppForTests();
   const res = await request(app)
     .post("/v1/auth/login")
     .send({ email: "user@example.com", password: "password123" });
@@ -62,33 +73,33 @@ test("POST /v1/auth/login returns session payload", async () => {
 });
 
 test("POST /v1/auth/login/google returns session payload", async () => {
-  const app = createApp({ authService: fakeAuthService });
+  const app = createAuthAppForTests();
   const res = await request(app).post("/v1/auth/login/google").send({ id_token: "google-id-token" });
   assert.equal(res.status, 200);
   assert.equal(res.body.access_token, "at-google");
 });
 
 test("POST /v1/auth/refresh returns new tokens", async () => {
-  const app = createApp({ authService: fakeAuthService });
+  const app = createAuthAppForTests();
   const res = await request(app).post("/v1/auth/refresh").send({ refresh_token: "rt-login" });
   assert.equal(res.status, 200);
   assert.equal(res.body.access_token, "at-refresh");
 });
 
 test("POST /v1/auth/logout returns 204", async () => {
-  const app = createApp({ authService: fakeAuthService });
+  const app = createAuthAppForTests();
   const res = await request(app).post("/v1/auth/logout").send({ access_token: "at-login" });
   assert.equal(res.status, 204);
 });
 
 test("POST /v1/auth/password/recover validates body", async () => {
-  const app = createApp({ authService: fakeAuthService });
+  const app = createAuthAppForTests();
   const res = await request(app).post("/v1/auth/password/recover").send({ email: "bad" });
   assert.equal(res.status, 400);
 });
 
 test("POST /v1/auth/password/recover returns 202", async () => {
-  const app = createApp({ authService: fakeAuthService });
+  const app = createAuthAppForTests();
   const res = await request(app)
     .post("/v1/auth/password/recover")
     .send({ email: "user@example.com" });

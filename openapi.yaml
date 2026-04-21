@@ -170,7 +170,7 @@ paths:
     post:
       tags: [Staff]
       summary: Invite staff member by email
-      description: Sends a Supabase Auth invite email. Requires admin role and server-side Supabase configuration.
+      description: Sends an invitation email via SendGrid. Requires admin role and server-side SendGrid configuration.
       operationId: inviteStaffByEmail
       security:
         - bearerAuth: []

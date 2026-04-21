@@ -84,10 +84,11 @@ test("POST /v1/staff/invite returns 502 when provider fails", async () => {
   assert.equal(response.body.code, "invite_failed");
 });
 
-test("POST /v1/staff/invite returns 503 when Supabase not configured", async () => {
+test("POST /v1/staff/invite returns 503 when invite service is not configured", async () => {
   process.env.JWT_SECRET = JWT_SECRET;
-  delete process.env.SUPABASE_URL;
-  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  delete process.env.SENDGRID_API_KEY;
+  delete process.env.INVITE_FROM_EMAIL;
+  delete process.env.INVITE_SIGNUP_URL;
 
   const app = createApp();
   const response = await request(app)
