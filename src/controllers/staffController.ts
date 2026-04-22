@@ -15,6 +15,8 @@ export async function postStaffInvite(
   const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
   const senderName = req.auth?.name;
   const senderEmail = req.auth?.email;
+  const orgId = req.auth?.orgId;
+  const invitedByUserId = req.auth?.userId;
 
   if (!email || !isValidEmail(email)) {
     res.status(400).json({
@@ -25,8 +27,17 @@ export async function postStaffInvite(
   }
 
   try {
+    if (!orgId || !invitedByUserId) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Authentication is required.",
+      });
+      return;
+    }
     await inviteUserByEmail({
       email,
+      orgId,
+      invitedByUserId,
       senderName: senderName || undefined,
       senderEmail: senderEmail || undefined,
     });
@@ -36,10 +47,16 @@ export async function postStaffInvite(
       org_id: req.auth?.orgId,
     });
   } catch (error) {
-    if (error instanceof InviteNotConfiguredError) {
+    const notConfigured =
+      error instanceof InviteNotConfiguredError ||
+      (error instanceof Error && /DATABASE_URL is required for invite workflow/i.test(error.message));
+    if (notConfigured) {
       res.status(503).json({
         code: "service_unavailable",
-        message: error.message,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Invite service is not configured.",
       });
       return;
     }

@@ -4,6 +4,7 @@ import type { AssignmentService } from "./services/assignmentService";
 import type { FamilyTokenService } from "./services/familyTokenService";
 import type { SettingsService } from "./services/settingsService";
 import type { StaffService } from "./services/staffService";
+import type { StaffInviteService } from "./services/staffInviteService";
 import type { InviteByEmailInput } from "./services/inviteStaff";
 
 /** Concrete dependencies after `createApp` applies defaults (used by routes/controllers). */
@@ -14,5 +15,6 @@ export type AppServices = {
   staffService: StaffService;
   assignmentService: AssignmentService;
   familyTokenService: FamilyTokenService;
+  staffInviteService: StaffInviteService;
   publicTokenRateLimit: RequestHandler;
 };

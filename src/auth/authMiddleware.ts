@@ -129,3 +129,102 @@ export async function requireAuth(
     });
   }
 }
+
+/**
+ * Validates bearer token and attaches user identity, but does not require
+ * the user to already have a staff/org membership. Use for invite acceptance.
+ */
+export async function requireAuthUser(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    res.status(401).json({
+      code: "unauthorized",
+      message: "Authentication is required.",
+    });
+    return;
+  }
+
+  const token = authHeader.slice("Bearer ".length).trim();
+  if (!token) {
+    res.status(401).json({
+      code: "unauthorized",
+      message: "Authentication is required.",
+    });
+    return;
+  }
+
+  try {
+    const header = jwt.decode(token, { complete: true })?.header;
+    const alg = header?.alg;
+
+    const secret = process.env.JWT_SECRET?.trim();
+    if (alg === "HS256" && secret) {
+      const decoded = jwt.verify(token, secret) as JwtPayload;
+      const userId = decoded.sub;
+      if (!userId) {
+        res.status(401).json({
+          code: "unauthorized",
+          message: "Invalid authentication token.",
+        });
+        return;
+      }
+      req.auth = {
+        userId,
+        role: decoded.role ?? "user",
+        orgId: decoded.org_id ?? "",
+        email: decoded.email,
+        name: decoded.full_name ?? decoded.name,
+      };
+      next();
+      return;
+    }
+
+    const user = await getUserFromSupabaseAccessToken(token);
+    if (user) {
+      const row = await defaultStaffService.findOrgRoleByUserId(user.id);
+      req.auth = {
+        userId: user.id,
+        role: row?.role ?? "user",
+        orgId: row?.org_id ?? "",
+        email: user.email ?? undefined,
+        name:
+          user.user_metadata?.full_name?.toString().trim() ||
+          user.user_metadata?.name?.toString().trim() ||
+          undefined,
+      };
+      next();
+      return;
+    }
+
+    if (process.env.SUPABASE_URL?.trim() && process.env.SUPABASE_ANON_KEY?.trim()) {
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Invalid authentication token.",
+      });
+      return;
+    }
+
+    if (!secret) {
+      res.status(503).json({
+        code: "auth_not_configured",
+        message: "Authentication is not configured (JWT_SECRET missing).",
+      });
+      return;
+    }
+
+    res.status(401).json({
+      code: "unauthorized",
+      message: "Invalid authentication token.",
+    });
+  } catch {
+    res.status(401).json({
+      code: "unauthorized",
+      message: "Invalid authentication token.",
+    });
+  }
+}

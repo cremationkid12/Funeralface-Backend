@@ -4,6 +4,9 @@ export type InviteByEmailInput = {
   email: string;
   senderName?: string | null;
   senderEmail?: string | null;
+  inviteToken?: string;
+  orgId?: string;
+  invitedByUserId?: string;
 };
 
 export class InviteNotConfiguredError extends Error {
@@ -16,10 +19,19 @@ export class InviteNotConfiguredError extends Error {
   }
 }
 
-function buildInviteLink(baseUrl: string, email: string): string {
+function buildInviteLink(baseUrl: string, email: string, inviteToken?: string): string {
   const url = new URL(baseUrl);
   url.searchParams.set("email", email);
   url.searchParams.set("invited", "1");
+  const token = inviteToken?.trim();
+  if (token) {
+    const invitePathPattern = /\/invite\/?$/i;
+    if (invitePathPattern.test(url.pathname)) {
+      url.pathname = `${url.pathname.replace(/\/+$/, "")}/${encodeURIComponent(token)}`;
+    } else {
+      url.searchParams.set("invite_token", token);
+    }
+  }
   return url.toString();
 }
 
@@ -157,7 +169,7 @@ export async function defaultInviteUserByEmail(input: InviteByEmailInput): Promi
 
   let inviteLink: string;
   try {
-    inviteLink = buildInviteLink(inviteSignupUrl, email);
+    inviteLink = buildInviteLink(inviteSignupUrl, email, input.inviteToken);
   } catch {
     throw new InviteNotConfiguredError();
   }

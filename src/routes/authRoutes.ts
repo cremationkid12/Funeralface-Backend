@@ -1,7 +1,8 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { requireAuth } from "../auth/authMiddleware";
+import { requireAuth, requireAuthUser, type AuthenticatedRequest } from "../auth/authMiddleware";
 import type { AppServices } from "../appServices";
+import { postAcceptInvite } from "../controllers/inviteController";
 import {
   getAuthMe,
   postEnsureProvisioned,
@@ -36,6 +37,9 @@ export function createAuthRouter(services: AppServices): Router {
   router.post("/logout", (req: Request, res: Response) => postLogout(req, res, services.authService));
   router.post("/password/recover", (req: Request, res: Response) =>
     postPasswordRecover(req, res, services.authService),
+  );
+  router.post("/invites/accept", requireAuthUser, (req: Request, res: Response) =>
+    postAcceptInvite(req as AuthenticatedRequest, res, services.staffInviteService),
   );
 
   return router;

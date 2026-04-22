@@ -166,6 +166,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /v1/auth/invites/accept:
+    post:
+      tags: [Auth]
+      summary: Accept a pending staff invitation
+      operationId: postAcceptInvite
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteAcceptRequest'
+      responses:
+        '200':
+          description: Invite accepted and membership activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteAcceptResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
   /v1/staff/invite:
     post:
       tags: [Staff]
@@ -532,6 +558,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /v1/public/invites/{token}/preview:
+    get:
+      tags: [Public]
+      summary: Preview invitation by token
+      operationId: getInvitePreviewByToken
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Invitation preview payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitePreviewResponse'
+        '404':
+          description: Invite token invalid or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -619,6 +669,41 @@ components:
           type: string
           format: email
         org_id:
+          type: string
+    InvitePreviewResponse:
+      type: object
+      required: [org_id, invited_email, invited_role, expires_at]
+      properties:
+        org_id:
+          type: string
+        invited_email:
+          type: string
+          format: email
+        invited_role:
+          type: string
+        inviter_name:
+          type: string
+          nullable: true
+        inviter_email:
+          type: string
+          format: email
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+    InviteAcceptRequest:
+      type: object
+      required: [invite_token]
+      properties:
+        invite_token:
+          type: string
+    InviteAcceptResponse:
+      type: object
+      required: [org_id, role]
+      properties:
+        org_id:
+          type: string
+        role:
           type: string
     Settings:
       type: object

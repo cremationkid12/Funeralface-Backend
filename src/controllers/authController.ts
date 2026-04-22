@@ -69,6 +69,7 @@ export async function postRegister(
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
   const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
+  const inviteToken = typeof req.body?.invite_token === "string" ? req.body.invite_token.trim() : "";
   if (!name || !email || !isValidEmail(email) || password.length < 8) {
     res.status(400).json({
       code: "bad_request",
@@ -78,7 +79,7 @@ export async function postRegister(
   }
   try {
     const data = await deps.authService.register(email, password);
-    if (data.user_id && data.access_token && process.env.DATABASE_URL?.trim()) {
+    if (data.user_id && data.access_token && process.env.DATABASE_URL?.trim() && !inviteToken) {
       await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, email, name);
     }
     res.status(201).json(data);
@@ -103,6 +104,7 @@ export async function postLogin(
 ): Promise<void> {
   const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
+  const inviteToken = typeof req.body?.invite_token === "string" ? req.body.invite_token.trim() : "";
   if (!email || !isValidEmail(email) || !password) {
     res.status(400).json({
       code: "bad_request",
@@ -112,7 +114,7 @@ export async function postLogin(
   }
   try {
     const data = await deps.authService.login(email, password);
-    if (process.env.DATABASE_URL?.trim()) {
+    if (process.env.DATABASE_URL?.trim() && !inviteToken) {
       await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, email);
     }
     res.status(200).json(data);
