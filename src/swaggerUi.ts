@@ -39,10 +39,16 @@ export function setupSwaggerUi(app: Express): void {
   if (process.env.ENABLE_SWAGGER_UI?.trim().toLowerCase() === "false") {
     return;
   }
-  const openApiPath = path.resolve(resolveOpenApiPath());
-  const spec = loadOpenApiDocument(openApiPath);
-  app.use("/docs", swaggerUi.serve, swaggerUi.setup(spec, { customSiteTitle: "Funeralface API docs" }));
-  app.get("/openapi.yaml", (_req, res) => {
-    res.type("application/yaml").sendFile(openApiPath);
-  });
+  try {
+    const openApiPath = path.resolve(resolveOpenApiPath());
+    const spec = loadOpenApiDocument(openApiPath);
+    app.use("/docs", swaggerUi.serve, swaggerUi.setup(spec, { customSiteTitle: "Funeralface API docs" }));
+    app.get("/openapi.yaml", (_req, res) => {
+      res.type("application/yaml").sendFile(openApiPath);
+    });
+  } catch (error) {
+    // Keep API bootable in production even when docs artifact is missing.
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(`[Swagger UI disabled] ${reason}`);
+  }
 }
