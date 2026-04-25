@@ -62,14 +62,6 @@ function createInMemoryAssignmentService() {
 
       const current = items[idx];
       const nextStatus = (input.status ?? current.status) as AssignmentStatus;
-      if (
-        current.status === "completed" &&
-        nextStatus !== "completed"
-      ) {
-        const err = new Error(`Invalid status transition: ${current.status} -> ${nextStatus}`);
-        Object.assign(err, { name: "InvalidStatusTransitionError" });
-        throw err;
-      }
 
       const next: PickupAssignmentRecord = {
         ...current,
@@ -180,15 +172,11 @@ test("PATCH /v1/assignments/:id updates status and creates audit log", async () 
     .set("Authorization", `Bearer ${makeToken("org-1", "actor-1")}`)
     .send({ status: "pending" } satisfies AssignmentUpdateInput);
 
-  assert.equal(update.status, 400);
-
-  const valid = await request(app)
-    .patch(`/v1/assignments/${created.body.id}`)
-    .set("Authorization", `Bearer ${makeToken("org-1", "actor-1")}`)
-    .send({ status: "completed" } satisfies AssignmentUpdateInput);
-
-  assert.equal(valid.status, 200);
-  assert.equal(audits.length, 0);
+  assert.equal(update.status, 200);
+  assert.equal(update.body.status, "pending");
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0]?.fromStatus, "completed");
+  assert.equal(audits[0]?.toStatus, "pending");
 });
 
 test("PATCH /v1/assignments/:id 404 for cross-org assignment", async () => {

@@ -80,18 +80,6 @@ export function isAssignmentStatus(value: string): value is AssignmentStatus {
   return (ASSIGNMENT_STATUSES as readonly string[]).includes(value);
 }
 
-function canTransition(fromStatus: AssignmentStatus, toStatus: AssignmentStatus): boolean {
-  if (fromStatus === toStatus) return true;
-  if (fromStatus === "cancelled" || fromStatus === "completed") return false;
-
-  const order: AssignmentStatus[] = ["pending", "assigned", "en_route", "arrived", "completed"];
-  const fromIndex = order.indexOf(fromStatus);
-  const toIndex = order.indexOf(toStatus);
-
-  if (toStatus === "cancelled") return true;
-  return toIndex === fromIndex + 1;
-}
-
 async function insertAuditLog(
   pool: Pool,
   assignmentId: string,
@@ -192,11 +180,6 @@ export const defaultAssignmentService: AssignmentService = {
     if (!current) return null;
 
     const nextStatus = input.status ?? current.status;
-    if (!canTransition(current.status, nextStatus)) {
-      const err = new Error(`Invalid status transition: ${current.status} -> ${nextStatus}`);
-      Object.assign(err, { name: "InvalidStatusTransitionError" });
-      throw err;
-    }
 
     let nextShareToken = current.share_token;
     let nextShareExpires = current.share_token_expires_at;
