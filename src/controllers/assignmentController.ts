@@ -9,6 +9,27 @@ import {
 } from "../services/assignmentService";
 import { FamilyLinkNotConfiguredError, isValidEmail, sendFamilyLinkByEmail } from "../services/inviteStaff";
 
+function parseEtaTime(value: unknown): Date | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  // Support "HH:mm" from UI time picker payloads.
+  const hhmm = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(trimmed);
+  if (hhmm) {
+    const now = new Date();
+    const date = new Date(now);
+    date.setHours(Number(hhmm[1]), Number(hhmm[2]), 0, 0);
+    return date;
+  }
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed;
+}
+
 export async function getAssignments(
   req: AuthenticatedRequest,
   res: Response,
@@ -46,6 +67,7 @@ export async function postAssignment(
   const pickup_address = typeof body.pickup_address === "string" ? body.pickup_address : "";
   const contact_name = typeof body.contact_name === "string" ? body.contact_name : "";
   const contact_phone = typeof body.contact_phone === "string" ? body.contact_phone : "";
+  const eta_time = parseEtaTime(body.eta_time);
   const notes = typeof body.notes === "string" ? body.notes : null;
   const assigned_staff_id = typeof body.assigned_staff_id === "string" ? body.assigned_staff_id : null;
   const rawStatus = typeof body.status === "string" ? body.status : undefined;
@@ -69,12 +91,20 @@ export async function postAssignment(
   if (rawStatus && isAssignmentStatus(rawStatus)) {
     status = rawStatus;
   }
+  if (body.eta_time !== undefined && eta_time === undefined) {
+    res.status(400).json({
+      code: "bad_request",
+      message: "Invalid eta_time. Use an ISO datetime or HH:mm format.",
+    });
+    return;
+  }
 
   const created = await assignmentService.createByOrgId(orgId, {
     decedent_name,
     pickup_address,
     contact_name,
     contact_phone,
+    eta_time,
     notes,
     assigned_staff_id,
     status,
@@ -104,6 +134,17 @@ export async function patchAssignment(
   if (typeof body.pickup_address === "string") update.pickup_address = body.pickup_address;
   if (typeof body.contact_name === "string") update.contact_name = body.contact_name;
   if (typeof body.contact_phone === "string") update.contact_phone = body.contact_phone;
+  const eta_time = parseEtaTime(body.eta_time);
+  if (body.eta_time !== undefined) {
+    if (eta_time === undefined) {
+      res.status(400).json({
+        code: "bad_request",
+        message: "Invalid eta_time. Use an ISO datetime or HH:mm format.",
+      });
+      return;
+    }
+    update.eta_time = eta_time;
+  }
   if (typeof body.notes === "string" || body.notes === null) update.notes = body.notes as string | null;
   if (typeof body.assigned_staff_id === "string" || body.assigned_staff_id === null) {
     update.assigned_staff_id = body.assigned_staff_id as string | null;

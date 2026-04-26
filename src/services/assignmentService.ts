@@ -19,6 +19,7 @@ export type PickupAssignmentRecord = {
   pickup_address: string;
   contact_name: string;
   contact_phone: string;
+  eta_time?: string | null;
   notes: string | null;
   assigned_staff_id: string | null;
   assigned_staff_name?: string | null;
@@ -32,6 +33,7 @@ export type AssignmentCreateInput = {
   pickup_address: string;
   contact_name: string;
   contact_phone: string;
+  eta_time?: Date | null;
   notes?: string | null;
   assigned_staff_id?: string | null;
   status?: AssignmentStatus;
@@ -129,6 +131,7 @@ export const defaultAssignmentService: AssignmentService = {
       `
       SELECT
         pa.id, pa.org_id, pa.decedent_name, pa.pickup_address, pa.contact_name, pa.contact_phone,
+        pa.eta_time,
         pa.notes, pa.assigned_staff_id, sm.name AS assigned_staff_name,
         sm.profile_image_url AS assigned_staff_profile_image_url,
         pa.status, pa.created_at,
@@ -155,13 +158,15 @@ export const defaultAssignmentService: AssignmentService = {
         pickup_address,
         contact_name,
         contact_phone,
+        eta_time,
         notes,
         assigned_staff_id,
         status
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
       RETURNING
         id, org_id, decedent_name, pickup_address, contact_name, contact_phone,
+        eta_time,
         notes, assigned_staff_id, status, created_at,
         share_token, share_token_expires_at, share_token_one_time
       `,
@@ -172,6 +177,7 @@ export const defaultAssignmentService: AssignmentService = {
         input.pickup_address.trim(),
         input.contact_name.trim(),
         input.contact_phone.trim(),
+        input.eta_time ?? null,
         input.notes?.trim() || null,
         input.assigned_staff_id ?? null,
         status,
@@ -186,6 +192,7 @@ export const defaultAssignmentService: AssignmentService = {
       `
       SELECT
         id, org_id, decedent_name, pickup_address, contact_name, contact_phone,
+        eta_time,
         notes, assigned_staff_id, status, created_at,
         share_token,
         share_token_expires_at,
@@ -248,18 +255,20 @@ export const defaultAssignmentService: AssignmentService = {
         pickup_address = $4,
         contact_name = $5,
         contact_phone = $6,
-        notes = $7,
-        assigned_staff_id = $8,
-        status = $9,
-        share_token = $10,
-        share_token_expires_at = $11,
-        share_token_revoked_at = $12,
-        share_token_consumed_at = $13,
-        share_token_one_time = $14,
+        eta_time = $7,
+        notes = $8,
+        assigned_staff_id = $9,
+        status = $10,
+        share_token = $11,
+        share_token_expires_at = $12,
+        share_token_revoked_at = $13,
+        share_token_consumed_at = $14,
+        share_token_one_time = $15,
         updated_at = NOW()
       WHERE org_id = $1 AND id = $2
       RETURNING
         id, org_id, decedent_name, pickup_address, contact_name, contact_phone,
+        eta_time,
         notes, assigned_staff_id, status, created_at,
         share_token, share_token_expires_at, share_token_one_time
       `,
@@ -270,6 +279,7 @@ export const defaultAssignmentService: AssignmentService = {
         input.pickup_address?.trim() || current.pickup_address,
         input.contact_name?.trim() || current.contact_name,
         input.contact_phone?.trim() || current.contact_phone,
+        input.eta_time !== undefined ? input.eta_time : current.eta_time,
         input.notes !== undefined ? (input.notes?.trim() || null) : current.notes,
         input.assigned_staff_id !== undefined ? input.assigned_staff_id : current.assigned_staff_id,
         nextStatus,
