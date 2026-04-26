@@ -4,13 +4,18 @@ export type FamilyAssignmentView = {
   assignment_id: string;
   decedent_name: string;
   status: string;
+  pickup_address: string | null;
+  eta_time: string | null;
   eta_note: string | null;
   support_contact_phone: string;
   funeral_home_name?: string | null;
+  funeral_home_logo_url?: string | null;
   funeral_home_address?: string | null;
   assigned_staff_name?: string | null;
+  assigned_staff_bio?: string | null;
   assigned_staff_phone?: string | null;
   assigned_staff_email?: string | null;
+  assigned_staff_profile_image_url?: string | null;
 };
 
 export type FamilyTokenResolveResult =
@@ -39,15 +44,19 @@ type AssignmentTokenRow = {
   org_id: string;
   decedent_name: string;
   status: string;
+  pickup_address: string | null;
   eta_time: Date | null;
   share_token_expires_at: Date | null;
   share_token_revoked_at: Date | null;
   share_token_consumed_at: Date | null;
   share_token_one_time: boolean;
   assigned_staff_name: string | null;
+  assigned_staff_bio: string | null;
   assigned_staff_phone: string | null;
   assigned_staff_email: string | null;
+  assigned_staff_profile_image_url: string | null;
   funeral_home_name: string | null;
+  funeral_home_logo_url: string | null;
   funeral_home_address: string | null;
   funeral_home_phone: string | null;
 };
@@ -71,15 +80,19 @@ export const defaultFamilyTokenService: FamilyTokenService = {
           pa.org_id,
           pa.decedent_name,
           pa.status,
+          pa.pickup_address,
           pa.eta_time,
           pa.share_token_expires_at,
           pa.share_token_revoked_at,
           pa.share_token_consumed_at,
           pa.share_token_one_time,
           sm.name AS assigned_staff_name,
+          sm.bio AS assigned_staff_bio,
           sm.phone AS assigned_staff_phone,
           sm.email AS assigned_staff_email,
+          sm.profile_image_url AS assigned_staff_profile_image_url,
           s.funeral_home_name,
+          s.logo_url AS funeral_home_logo_url,
           s.funeral_home_address,
           s.funeral_home_phone
         FROM pickup_assignments pa
@@ -137,13 +150,18 @@ export const defaultFamilyTokenService: FamilyTokenService = {
         assignment_id: row.id,
         decedent_name: row.decedent_name,
         status: row.status,
+        pickup_address: row.pickup_address?.trim() ?? null,
+        eta_time: row.eta_time ? row.eta_time.toISOString() : null,
         eta_note: formatEtaNote(row.eta_time),
         support_contact_phone: row.funeral_home_phone?.trim() ?? "",
         funeral_home_name: row.funeral_home_name?.trim() ?? null,
+        funeral_home_logo_url: row.funeral_home_logo_url?.trim() ?? null,
         funeral_home_address: row.funeral_home_address?.trim() ?? null,
         assigned_staff_name: row.assigned_staff_name?.trim() ?? null,
+        assigned_staff_bio: row.assigned_staff_bio?.trim() ?? null,
         assigned_staff_phone: row.assigned_staff_phone?.trim() ?? null,
         assigned_staff_email: row.assigned_staff_email?.trim() ?? null,
+        assigned_staff_profile_image_url: row.assigned_staff_profile_image_url?.trim() ?? null,
       };
 
       await client.query("COMMIT");
