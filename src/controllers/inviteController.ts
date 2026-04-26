@@ -33,6 +33,7 @@ export async function postAcceptInvite(
   const userId = req.auth?.userId;
   const userEmail = req.auth?.email?.trim();
   const userName = req.auth?.name?.trim();
+  const provider = req.auth?.provider?.trim();
   const token = typeof req.body?.invite_token === "string" ? req.body.invite_token.trim() : "";
   if (!userId || !userEmail) {
     res.status(401).json({ code: "unauthorized", message: "Authentication is required." });
@@ -47,6 +48,7 @@ export async function postAcceptInvite(
     userId,
     userEmail,
     userName,
+    provider,
   });
   if (!accepted) {
     res.status(404).json({ code: "not_found", message: "Invite link is invalid, expired, or mismatched." });

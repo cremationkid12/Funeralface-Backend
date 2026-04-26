@@ -91,6 +91,32 @@ export async function getStaffList(
   res.status(200).json({ items });
 }
 
+export async function getMyStaffProfile(
+  req: AuthenticatedRequest,
+  res: Response,
+  staffService: StaffService,
+): Promise<void> {
+  const orgId = req.auth?.orgId;
+  const userId = req.auth?.userId;
+  if (!orgId || !userId) {
+    res.status(401).json({
+      code: "unauthorized",
+      message: "Authentication is required.",
+    });
+    return;
+  }
+
+  const staff = await staffService.getByOrgIdAndId(orgId, userId);
+  if (!staff) {
+    res.status(404).json({
+      code: "not_found",
+      message: "Resource was not found.",
+    });
+    return;
+  }
+  res.status(200).json(staff);
+}
+
 export async function postStaff(
   req: AuthenticatedRequest,
   res: Response,
@@ -170,6 +196,9 @@ export async function patchStaff(
   if (typeof body.name === "string") update.name = body.name;
   if (typeof body.phone === "string") update.phone = body.phone;
   if (typeof body.email === "string" || body.email === null) update.email = body.email as string | null;
+  if (typeof body.profile_image_url === "string" || body.profile_image_url === null) {
+    update.profile_image_url = body.profile_image_url as string | null;
+  }
   if (typeof body.role === "string") update.role = body.role;
   if (typeof body.active === "boolean") update.active = body.active;
 
@@ -182,6 +211,49 @@ export async function patchStaff(
   }
 
   const updated = await staffService.updateByOrgIdAndId(orgId, id, update, actorUserId);
+  if (!updated) {
+    res.status(404).json({
+      code: "not_found",
+      message: "Resource was not found.",
+    });
+    return;
+  }
+  res.status(200).json(updated);
+}
+
+export async function patchMyStaffProfile(
+  req: AuthenticatedRequest,
+  res: Response,
+  staffService: StaffService,
+): Promise<void> {
+  const orgId = req.auth?.orgId;
+  const actorUserId = req.auth?.userId;
+  if (!orgId || !actorUserId) {
+    res.status(401).json({
+      code: "unauthorized",
+      message: "Authentication is required.",
+    });
+    return;
+  }
+
+  const body = req.body as Record<string, unknown>;
+  const update: StaffUpdateInput = {};
+  if (typeof body.name === "string") update.name = body.name;
+  if (typeof body.phone === "string") update.phone = body.phone;
+  if (typeof body.email === "string" || body.email === null) update.email = body.email as string | null;
+  if (typeof body.profile_image_url === "string" || body.profile_image_url === null) {
+    update.profile_image_url = body.profile_image_url as string | null;
+  }
+
+  if (Object.keys(update).length === 0) {
+    res.status(400).json({
+      code: "bad_request",
+      message: "At least one valid profile field is required.",
+    });
+    return;
+  }
+
+  const updated = await staffService.updateByOrgIdAndId(orgId, actorUserId, update, actorUserId);
   if (!updated) {
     res.status(404).json({
       code: "not_found",

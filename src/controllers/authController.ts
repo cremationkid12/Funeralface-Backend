@@ -5,6 +5,15 @@ import { isValidEmail } from "../services/inviteStaff";
 import { AuthNotConfiguredError, type AuthService } from "../services/authService";
 import type { StaffService } from "../services/staffService";
 
+function normalizeProvider(provider?: string | null): string {
+  const normalized = provider?.trim().toLowerCase();
+  if (!normalized) return "email";
+  if (normalized === "google" || normalized === "facebook" || normalized === "email") {
+    return normalized;
+  }
+  return "email";
+}
+
 export type AuthControllerDeps = {
   authService: AuthService;
   staffService: StaffService;
@@ -47,10 +56,20 @@ export async function postEnsureProvisioned(
       user.user_metadata?.full_name?.toString().trim() ||
       user.user_metadata?.name?.toString().trim() ||
       "";
+    const provider =
+      user.app_metadata?.provider?.toString().trim() ||
+      user.identities?.[0]?.provider?.toString().trim() ||
+      "email";
+    const avatarUrl =
+      user.user_metadata?.avatar_url?.toString().trim() ||
+      user.user_metadata?.picture?.toString().trim() ||
+      "";
     const row = await staffService.bootstrapOrgAndAdminForUser(
       user.id,
       user.email ?? "",
       profileName,
+      normalizeProvider(provider),
+      avatarUrl || null,
     );
     res.status(200).json({ org_id: row.org_id, role: row.role });
   } catch (error) {
@@ -80,7 +99,7 @@ export async function postRegister(
   try {
     const data = await deps.authService.register(email, password);
     if (data.user_id && data.access_token && process.env.DATABASE_URL?.trim() && !inviteToken) {
-      await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, email, name);
+      await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, email, name, "email");
     }
     res.status(201).json(data);
   } catch (error) {
@@ -115,7 +134,7 @@ export async function postLogin(
   try {
     const data = await deps.authService.login(email, password);
     if (process.env.DATABASE_URL?.trim() && !inviteToken) {
-      await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, email);
+      await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, email, null, "email");
     }
     res.status(200).json(data);
   } catch (error) {
@@ -146,7 +165,7 @@ export async function postGoogleLogin(
   try {
     const data = await deps.authService.loginWithGoogle(idToken);
     if (process.env.DATABASE_URL?.trim()) {
-      await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, "");
+      await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, "", null, "google");
     }
     res.status(200).json(data);
   } catch (error) {

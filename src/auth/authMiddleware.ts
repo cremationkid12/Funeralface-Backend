@@ -10,6 +10,7 @@ export type AuthenticatedRequest = Request & {
     orgId: string;
     email?: string;
     name?: string;
+    provider?: string;
   };
 };
 
@@ -20,6 +21,7 @@ type JwtPayload = {
   email?: string;
   name?: string;
   full_name?: string;
+  provider?: string;
 };
 
 export async function requireAuth(
@@ -71,6 +73,7 @@ export async function requireAuth(
         orgId,
         email: decoded.email,
         name: decoded.full_name ?? decoded.name,
+        provider: decoded.provider,
       };
       next();
       return;
@@ -96,6 +99,10 @@ export async function requireAuth(
         name:
           user.user_metadata?.full_name?.toString().trim() ||
           user.user_metadata?.name?.toString().trim() ||
+          undefined,
+        provider:
+          user.app_metadata?.provider?.toString().trim() ||
+          user.identities?.[0]?.provider?.toString().trim() ||
           undefined,
       };
       next();
@@ -179,6 +186,7 @@ export async function requireAuthUser(
         orgId: decoded.org_id ?? "",
         email: decoded.email,
         name: decoded.full_name ?? decoded.name,
+        provider: decoded.provider,
       };
       next();
       return;
@@ -195,6 +203,10 @@ export async function requireAuthUser(
         name:
           user.user_metadata?.full_name?.toString().trim() ||
           user.user_metadata?.name?.toString().trim() ||
+          undefined,
+        provider:
+          user.app_metadata?.provider?.toString().trim() ||
+          user.identities?.[0]?.provider?.toString().trim() ||
           undefined,
       };
       next();

@@ -10,6 +10,8 @@ export type StaffMemberRecord = {
   email: string | null;
   role: string;
   active: boolean;
+  profile_image_url: string | null;
+  provider: string;
   created_at?: string;
 };
 
@@ -19,6 +21,8 @@ export type StaffCreateInput = {
   email?: string | null;
   role?: string;
   active?: boolean;
+  profile_image_url?: string | null;
+  provider?: string;
 };
 
 export type StaffUpdateInput = Partial<StaffCreateInput>;
@@ -33,11 +37,14 @@ export type OrgRoleForUser = { org_id: string; role: string };
 
 export type StaffService = {
   listByOrgId: (orgId: string, input: ListStaffInput) => Promise<StaffMemberRecord[]>;
+  getByOrgIdAndId: (orgId: string, id: string) => Promise<StaffMemberRecord | null>;
   findOrgRoleByUserId: (userId: string) => Promise<OrgRoleForUser | null>;
   bootstrapOrgAndAdminForUser: (
     userId: string,
     email: string,
     displayName?: string | null,
+    provider?: string,
+    profileImageUrl?: string | null,
   ) => Promise<OrgRoleForUser>;
   createByOrgId: (
     orgId: string,
@@ -71,7 +78,30 @@ function normalizeRole(role?: string): string {
   return role && role.trim() ? role.trim() : "user";
 }
 
+function normalizeProvider(provider?: string): string {
+  const normalized = provider?.trim().toLowerCase();
+  if (!normalized) return "email";
+  if (normalized === "google" || normalized === "facebook" || normalized === "email") {
+    return normalized;
+  }
+  return "email";
+}
+
 export const defaultStaffService: StaffService = {
+  async getByOrgIdAndId(orgId, id) {
+    const pool = getPgPool();
+    const result = await pool.query<StaffMemberRecord>(
+      `
+      SELECT id, org_id, name, phone, email, role, active, profile_image_url, provider, created_at
+      FROM staff_members
+      WHERE org_id = $1 AND id = $2
+      LIMIT 1
+      `,
+      [orgId, id],
+    );
+    return result.rows[0] ?? null;
+  },
+
   async findOrgRoleByUserId(userId) {
     const pool = getPgPool();
     const result = await pool.query<OrgRoleForUser>(
@@ -86,11 +116,26 @@ export const defaultStaffService: StaffService = {
     return result.rows[0] ?? null;
   },
 
-  async bootstrapOrgAndAdminForUser(userId, email, displayNameInput) {
+  async bootstrapOrgAndAdminForUser(userId, email, displayNameInput, providerInput, profileImageUrlInput) {
     const existing = await this.findOrgRoleByUserId(userId);
-    if (existing) return existing;
-
+    const provider = normalizeProvider(providerInput);
+    const profileImageUrl = profileImageUrlInput?.trim() || null;
     const pool = getPgPool();
+    if (existing) {
+      await pool.query(
+        `
+        UPDATE staff_members
+        SET
+          provider = $2,
+          profile_image_url = COALESCE($3, profile_image_url),
+          updated_at = NOW()
+        WHERE id = $1
+        `,
+        [userId, provider, profileImageUrl],
+      );
+      return existing;
+    }
+
     const orgId = randomUUID();
     const safeEmail = email.trim();
     const safeDisplayName = displayNameInput?.trim() ?? "";
@@ -111,10 +156,10 @@ export const defaultStaffService: StaffService = {
       await client.query("BEGIN");
       await client.query(
         `
-        INSERT INTO staff_members (id, org_id, name, phone, email, role, active)
-        VALUES ($1, $2, $3, $4, $5, 'admin', true)
+        INSERT INTO staff_members (id, org_id, name, phone, email, role, active, provider, profile_image_url)
+        VALUES ($1, $2, $3, $4, $5, 'admin', true, $6, $7)
         `,
-        [userId, orgId, displayName, "0000000000", safeEmail || null],
+        [userId, orgId, displayName, "0000000000", safeEmail || null, provider, profileImageUrl],
       );
       await client.query(
         `
@@ -145,7 +190,7 @@ export const defaultStaffService: StaffService = {
 
     const result = await pool.query<StaffMemberRecord>(
       `
-      SELECT id, org_id, name, phone, email, role, active, created_at
+      SELECT id, org_id, name, phone, email, role, active, profile_image_url, provider, created_at
       FROM staff_members
       WHERE org_id = $1
       ORDER BY created_at ${sort}
@@ -161,9 +206,9 @@ export const defaultStaffService: StaffService = {
     const pool = getPgPool();
     const result = await pool.query<StaffMemberRecord>(
       `
-      INSERT INTO staff_members (id, org_id, name, phone, email, role, active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, org_id, name, phone, email, role, active, created_at
+      INSERT INTO staff_members (id, org_id, name, phone, email, role, active, provider, profile_image_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id, org_id, name, phone, email, role, active, profile_image_url, provider, created_at
       `,
       [
         randomUUID(),
@@ -173,6 +218,8 @@ export const defaultStaffService: StaffService = {
         input.email?.trim() || null,
         normalizeRole(input.role),
         input.active ?? true,
+        normalizeProvider(input.provider),
+        input.profile_image_url?.trim() || null,
       ],
     );
 
@@ -207,7 +254,7 @@ export const defaultStaffService: StaffService = {
     const pool = getPgPool();
     const existing = await pool.query<StaffMemberRecord>(
       `
-      SELECT id, org_id, name, phone, email, role, active, created_at
+      SELECT id, org_id, name, phone, email, role, active, profile_image_url, provider, created_at
       FROM staff_members
       WHERE org_id = $1 AND id = $2
       LIMIT 1
@@ -232,9 +279,10 @@ export const defaultStaffService: StaffService = {
         email = $5,
         role = $6,
         active = $7,
+        profile_image_url = $8,
         updated_at = NOW()
       WHERE org_id = $1 AND id = $2
-      RETURNING id, org_id, name, phone, email, role, active, created_at
+      RETURNING id, org_id, name, phone, email, role, active, profile_image_url, provider, created_at
       `,
       [
         orgId,
@@ -244,6 +292,9 @@ export const defaultStaffService: StaffService = {
         input.email !== undefined ? (input.email?.trim() || null) : current.email,
         nextRole,
         nextActive,
+        input.profile_image_url !== undefined
+          ? (input.profile_image_url?.trim() || null)
+          : current.profile_image_url,
       ],
     );
 

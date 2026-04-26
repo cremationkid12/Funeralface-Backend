@@ -29,6 +29,7 @@ export type StaffInviteService = {
     userId: string;
     userEmail: string;
     userName?: string | null;
+    provider?: string | null;
   }): Promise<InviteAcceptResult | null>;
 };
 
@@ -57,6 +58,15 @@ function fallbackDisplayName(email: string): string {
   if (!trimmed.includes("@")) return "Team Member";
   const local = trimmed.split("@")[0]?.trim();
   return local && local.length > 0 ? local : "Team Member";
+}
+
+function normalizeProvider(provider?: string | null): string {
+  const normalized = provider?.trim().toLowerCase();
+  if (!normalized) return "email";
+  if (normalized === "google" || normalized === "facebook" || normalized === "email") {
+    return normalized;
+  }
+  return "email";
 }
 
 function defaultExpiryIso(): string {
@@ -180,6 +190,7 @@ export function createDefaultStaffInviteService(sendInviteEmail: InviteMailer): 
           email: normalizedEmail,
           role: invite.invited_role || "user",
           displayName: input.userName ?? fallbackDisplayName(normalizedEmail),
+          provider: normalizeProvider(input.provider),
         });
 
         await client.query(
@@ -215,6 +226,7 @@ async function upsertMembershipForAcceptedInvite(
     email: string;
     role: string;
     displayName: string;
+    provider: string;
   },
 ): Promise<void> {
   const existing = await client.query<{ id: string }>(
@@ -231,19 +243,20 @@ async function upsertMembershipForAcceptedInvite(
         active = true,
         email = $4,
         name = COALESCE(NULLIF(TRIM(name), ''), $5),
+        provider = $6,
         updated_at = NOW()
       WHERE id = $1
       `,
-      [input.userId, input.orgId, input.role, input.email, input.displayName],
+      [input.userId, input.orgId, input.role, input.email, input.displayName, input.provider],
     );
     return;
   }
 
   await client.query(
     `
-    INSERT INTO staff_members (id, org_id, name, phone, email, role, active)
-    VALUES ($1, $2, $3, '0000000000', $4, $5, true)
+    INSERT INTO staff_members (id, org_id, name, phone, email, role, active, provider)
+    VALUES ($1, $2, $3, '0000000000', $4, $5, true, $6)
     `,
-    [input.userId, input.orgId, input.displayName, input.email, input.role],
+    [input.userId, input.orgId, input.displayName, input.email, input.role, input.provider],
   );
 }

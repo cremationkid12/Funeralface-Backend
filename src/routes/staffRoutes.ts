@@ -5,7 +5,9 @@ import { requireRole } from "../auth/requireRole";
 import type { AppServices } from "../appServices";
 import {
   deleteStaff,
+  getMyStaffProfile,
   getStaffList,
+  patchMyStaffProfile,
   patchStaff,
   postStaff,
   postStaffActivate,
@@ -22,6 +24,14 @@ export function createStaffRouter(services: AppServices): Router {
     requireRole("admin"),
     (req: Request, res: Response) =>
       postStaffInvite(req as AuthenticatedRequest, res, services.inviteUserByEmail),
+  );
+
+  router.get("/me", requireAuth, (req: Request, res: Response) =>
+    getMyStaffProfile(req as AuthenticatedRequest, res, services.staffService),
+  );
+
+  router.patch("/me", requireAuth, (req: Request, res: Response) =>
+    patchMyStaffProfile(req as AuthenticatedRequest, res, services.staffService),
   );
 
   router.get("/", requireAuth, requireRole("admin"), (req: Request, res: Response) =>
