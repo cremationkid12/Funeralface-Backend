@@ -143,6 +143,7 @@ export async function postStaff(
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const phone = typeof body.phone === "string" ? body.phone.trim() : "";
   const email = typeof body.email === "string" ? body.email : null;
+  const bio = typeof body.bio === "string" ? body.bio : null;
   const role = typeof body.role === "string" ? body.role : undefined;
   const active = typeof body.active === "boolean" ? body.active : undefined;
 
@@ -160,6 +161,7 @@ export async function postStaff(
       name,
       phone,
       email,
+      bio,
       role,
       active,
     } satisfies StaffCreateInput,
@@ -196,6 +198,7 @@ export async function patchStaff(
   if (typeof body.name === "string") update.name = body.name;
   if (typeof body.phone === "string") update.phone = body.phone;
   if (typeof body.email === "string" || body.email === null) update.email = body.email as string | null;
+  if (typeof body.bio === "string" || body.bio === null) update.bio = body.bio as string | null;
   if (typeof body.profile_image_url === "string" || body.profile_image_url === null) {
     update.profile_image_url = body.profile_image_url as string | null;
   }
@@ -241,6 +244,7 @@ export async function patchMyStaffProfile(
   if (typeof body.name === "string") update.name = body.name;
   if (typeof body.phone === "string") update.phone = body.phone;
   if (typeof body.email === "string" || body.email === null) update.email = body.email as string | null;
+  if (typeof body.bio === "string" || body.bio === null) update.bio = body.bio as string | null;
   if (typeof body.profile_image_url === "string" || body.profile_image_url === null) {
     update.profile_image_url = body.profile_image_url as string | null;
   }

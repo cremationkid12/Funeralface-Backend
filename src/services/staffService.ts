@@ -8,6 +8,7 @@ export type StaffMemberRecord = {
   name: string;
   phone: string;
   email: string | null;
+  bio: string | null;
   role: string;
   active: boolean;
   profile_image_url: string | null;
@@ -19,6 +20,7 @@ export type StaffCreateInput = {
   name: string;
   phone: string;
   email?: string | null;
+  bio?: string | null;
   role?: string;
   active?: boolean;
   profile_image_url?: string | null;
@@ -92,7 +94,7 @@ export const defaultStaffService: StaffService = {
     const pool = getPgPool();
     const result = await pool.query<StaffMemberRecord>(
       `
-      SELECT id, org_id, name, phone, email, role, active, profile_image_url, provider, created_at
+      SELECT id, org_id, name, phone, email, bio, role, active, profile_image_url, provider, created_at
       FROM staff_members
       WHERE org_id = $1 AND id = $2
       LIMIT 1
@@ -190,7 +192,7 @@ export const defaultStaffService: StaffService = {
 
     const result = await pool.query<StaffMemberRecord>(
       `
-      SELECT id, org_id, name, phone, email, role, active, profile_image_url, provider, created_at
+      SELECT id, org_id, name, phone, email, bio, role, active, profile_image_url, provider, created_at
       FROM staff_members
       WHERE org_id = $1
       ORDER BY created_at ${sort}
@@ -206,9 +208,9 @@ export const defaultStaffService: StaffService = {
     const pool = getPgPool();
     const result = await pool.query<StaffMemberRecord>(
       `
-      INSERT INTO staff_members (id, org_id, name, phone, email, role, active, provider, profile_image_url)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING id, org_id, name, phone, email, role, active, profile_image_url, provider, created_at
+      INSERT INTO staff_members (id, org_id, name, phone, email, bio, role, active, provider, profile_image_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id, org_id, name, phone, email, bio, role, active, profile_image_url, provider, created_at
       `,
       [
         randomUUID(),
@@ -216,6 +218,7 @@ export const defaultStaffService: StaffService = {
         input.name.trim(),
         input.phone.trim(),
         input.email?.trim() || null,
+        input.bio?.trim() || null,
         normalizeRole(input.role),
         input.active ?? true,
         normalizeProvider(input.provider),
@@ -254,7 +257,7 @@ export const defaultStaffService: StaffService = {
     const pool = getPgPool();
     const existing = await pool.query<StaffMemberRecord>(
       `
-      SELECT id, org_id, name, phone, email, role, active, profile_image_url, provider, created_at
+      SELECT id, org_id, name, phone, email, bio, role, active, profile_image_url, provider, created_at
       FROM staff_members
       WHERE org_id = $1 AND id = $2
       LIMIT 1
@@ -277,12 +280,13 @@ export const defaultStaffService: StaffService = {
         name = $3,
         phone = $4,
         email = $5,
-        role = $6,
-        active = $7,
-        profile_image_url = $8,
+        bio = $6,
+        role = $7,
+        active = $8,
+        profile_image_url = $9,
         updated_at = NOW()
       WHERE org_id = $1 AND id = $2
-      RETURNING id, org_id, name, phone, email, role, active, profile_image_url, provider, created_at
+      RETURNING id, org_id, name, phone, email, bio, role, active, profile_image_url, provider, created_at
       `,
       [
         orgId,
@@ -290,6 +294,7 @@ export const defaultStaffService: StaffService = {
         input.name?.trim() || current.name,
         input.phone?.trim() || current.phone,
         input.email !== undefined ? (input.email?.trim() || null) : current.email,
+        input.bio !== undefined ? (input.bio?.trim() || null) : current.bio,
         nextRole,
         nextActive,
         input.profile_image_url !== undefined
