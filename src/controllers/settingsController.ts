@@ -47,7 +47,12 @@ export async function patchSettings(
   for (const key of allowedKeys) {
     const value = body[key];
     if (typeof value === "string") {
-      update[key] = value;
+      const normalized = value.trim();
+      if ((key === "logo_url" || key === "default_message") && normalized.length === 0) {
+        update[key] = null;
+      } else {
+        update[key] = normalized;
+      }
     } else if ((key === "logo_url" || key === "default_message") && value === null) {
       update[key] = null;
     }

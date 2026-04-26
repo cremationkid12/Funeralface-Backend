@@ -101,7 +101,7 @@ export const defaultSettingsService: SettingsService = {
         default_message = EXCLUDED.default_message,
         updated_at = NOW()
       RETURNING
-        org_id,
+        id AS org_id,
         funeral_home_name,
         funeral_home_phone,
         funeral_home_address,

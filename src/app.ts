@@ -17,6 +17,7 @@ import {
   createDefaultStaffInviteService,
   type StaffInviteService,
 } from "./services/staffInviteService";
+import { defaultStorageUploadService, type StorageUploadService } from "./services/storageUploadService";
 
 export type AppDependencies = {
   authService?: AuthService;
@@ -26,6 +27,7 @@ export type AppDependencies = {
   staffService?: StaffService;
   assignmentService?: AssignmentService;
   familyTokenService?: FamilyTokenService;
+  storageUploadService?: StorageUploadService;
   /** Override default in-memory rate limit (e.g. tests). */
   publicTokenRateLimit?: RequestHandler;
 };
@@ -74,6 +76,7 @@ export function createApp(deps: AppDependencies = {}): Express {
     staffService: deps.staffService ?? defaultStaffService,
     assignmentService: deps.assignmentService ?? defaultAssignmentService,
     familyTokenService: deps.familyTokenService ?? defaultFamilyTokenService,
+    storageUploadService: deps.storageUploadService ?? defaultStorageUploadService,
     publicTokenRateLimit:
       deps.publicTokenRateLimit ??
       createPublicTokenRateLimit({
