@@ -62,6 +62,21 @@ export type AssignmentService = {
     input: AssignmentUpdateInput,
     actorUserId: string,
   ) => Promise<PickupAssignmentRecord | null>;
+  getFamilyShareEmailContextByOrgIdAndId: (
+    orgId: string,
+    id: string,
+  ) => Promise<{
+    assignment_id: string;
+    share_token: string | null;
+    decedent_name: string;
+    status: AssignmentStatus;
+    funeral_home_name: string | null;
+    funeral_home_phone: string | null;
+    funeral_home_address: string | null;
+    assigned_staff_name: string | null;
+    assigned_staff_phone: string | null;
+    assigned_staff_email: string | null;
+  } | null>;
 };
 
 let pgPool: Pool | null = null;
@@ -112,7 +127,8 @@ export const defaultAssignmentService: AssignmentService = {
       `
       SELECT
         id, org_id, decedent_name, pickup_address, contact_name, contact_phone,
-        notes, assigned_staff_id, status, created_at
+        notes, assigned_staff_id, status, created_at,
+        share_token, share_token_expires_at, share_token_one_time
       FROM pickup_assignments
       WHERE org_id = $1
       ORDER BY created_at ${direction}
@@ -141,7 +157,8 @@ export const defaultAssignmentService: AssignmentService = {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       RETURNING
         id, org_id, decedent_name, pickup_address, contact_name, contact_phone,
-        notes, assigned_staff_id, status, created_at
+        notes, assigned_staff_id, status, created_at,
+        share_token, share_token_expires_at, share_token_one_time
       `,
       [
         randomUUID(),
@@ -238,7 +255,8 @@ export const defaultAssignmentService: AssignmentService = {
       WHERE org_id = $1 AND id = $2
       RETURNING
         id, org_id, decedent_name, pickup_address, contact_name, contact_phone,
-        notes, assigned_staff_id, status, created_at
+        notes, assigned_staff_id, status, created_at,
+        share_token, share_token_expires_at, share_token_one_time
       `,
       [
         orgId,
@@ -263,6 +281,43 @@ export const defaultAssignmentService: AssignmentService = {
     }
 
     return result.rows[0];
+  },
+
+  async getFamilyShareEmailContextByOrgIdAndId(orgId, id) {
+    const pool = getPgPool();
+    const result = await pool.query<{
+      assignment_id: string;
+      share_token: string | null;
+      decedent_name: string;
+      status: AssignmentStatus;
+      funeral_home_name: string | null;
+      funeral_home_phone: string | null;
+      funeral_home_address: string | null;
+      assigned_staff_name: string | null;
+      assigned_staff_phone: string | null;
+      assigned_staff_email: string | null;
+    }>(
+      `
+      SELECT
+        pa.id AS assignment_id,
+        pa.share_token,
+        pa.decedent_name,
+        pa.status,
+        s.funeral_home_name,
+        s.funeral_home_phone,
+        s.funeral_home_address,
+        sm.name AS assigned_staff_name,
+        sm.phone AS assigned_staff_phone,
+        sm.email AS assigned_staff_email
+      FROM pickup_assignments pa
+      LEFT JOIN funeral_homes s ON s.id = pa.org_id
+      LEFT JOIN staff_members sm ON sm.id = pa.assigned_staff_id
+      WHERE pa.org_id = $1 AND pa.id = $2
+      LIMIT 1
+      `,
+      [orgId, id],
+    );
+    return result.rows[0] ?? null;
   },
 };
 

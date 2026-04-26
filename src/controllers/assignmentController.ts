@@ -7,6 +7,7 @@ import {
   type AssignmentStatus,
   type AssignmentUpdateInput,
 } from "../services/assignmentService";
+import { FamilyLinkNotConfiguredError, isValidEmail, sendFamilyLinkByEmail } from "../services/inviteStaff";
 
 export async function getAssignments(
   req: AuthenticatedRequest,
@@ -166,6 +167,100 @@ export async function patchAssignment(
     if (error instanceof Error && error.name === "InvalidShareTokenFieldsError") {
       res.status(400).json({
         code: "bad_request",
+        message: error.message,
+      });
+      return;
+    }
+    throw error;
+  }
+}
+
+export async function postShareFamilyLinkByEmail(
+  req: AuthenticatedRequest,
+  res: Response,
+  assignmentService: AssignmentService,
+): Promise<void> {
+  const orgId = req.auth?.orgId;
+  if (!orgId) {
+    res.status(401).json({
+      code: "unauthorized",
+      message: "Authentication is required.",
+    });
+    return;
+  }
+
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+  if (!email || !isValidEmail(email)) {
+    res.status(400).json({
+      code: "bad_request",
+      message: "A valid family email is required.",
+    });
+    return;
+  }
+
+  const assignment = await assignmentService.getFamilyShareEmailContextByOrgIdAndId(orgId, id);
+  if (!assignment) {
+    res.status(404).json({
+      code: "not_found",
+      message: "Resource was not found.",
+    });
+    return;
+  }
+
+  if (!assignment.share_token) {
+    res.status(400).json({
+      code: "bad_request",
+      message: "Create a family link before sharing.",
+    });
+    return;
+  }
+
+  const familyLinkBaseUrl = (
+    process.env.FAMILY_LINK_BASE_URL?.trim() ||
+    process.env.FAMILY_LINK_BASE?.trim() ||
+    ""
+  ).replace(/\/+$/, "");
+  if (!familyLinkBaseUrl) {
+    res.status(503).json({
+      code: "family_link_not_configured",
+      message: "Family link base URL is not configured.",
+    });
+    return;
+  }
+  const familyLink = `${familyLinkBaseUrl}/family/${encodeURIComponent(assignment.share_token)}`;
+
+  try {
+    await sendFamilyLinkByEmail({
+      email,
+      familyLink,
+      decedentName: assignment.decedent_name,
+      status: assignment.status,
+      funeralHomeName: assignment.funeral_home_name,
+      funeralHomePhone: assignment.funeral_home_phone,
+      funeralHomeAddress: assignment.funeral_home_address,
+      assignedStaffName: assignment.assigned_staff_name,
+      assignedStaffPhone: assignment.assigned_staff_phone,
+    });
+    res.status(202).json({ ok: true });
+  } catch (error) {
+    if (error instanceof FamilyLinkNotConfiguredError) {
+      res.status(503).json({
+        code: "family_link_not_configured",
+        message: error.message,
+      });
+      return;
+    }
+    if (error instanceof Error && error.name === "InvalidFamilyEmailError") {
+      res.status(400).json({
+        code: "bad_request",
+        message: error.message,
+      });
+      return;
+    }
+    if (error instanceof Error) {
+      res.status(502).json({
+        code: "provider_error",
         message: error.message,
       });
       return;

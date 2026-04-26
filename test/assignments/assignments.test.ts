@@ -84,6 +84,10 @@ function createInMemoryAssignmentService() {
 
       return next;
     },
+
+    async getFamilyShareEmailContextByOrgIdAndId() {
+      return null;
+    },
   };
 
   return { service, audits };

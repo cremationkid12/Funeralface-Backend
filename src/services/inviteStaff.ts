@@ -19,6 +19,14 @@ export class InviteNotConfiguredError extends Error {
   }
 }
 
+export class FamilyLinkNotConfiguredError extends Error {
+  override name = "FamilyLinkNotConfiguredError";
+
+  constructor() {
+    super("Family link email is not configured (missing SENDGRID_API_KEY or INVITE_FROM_EMAIL).");
+  }
+}
+
 function buildInviteLink(baseUrl: string, email: string, inviteToken?: string): string {
   const url = new URL(baseUrl);
   url.searchParams.set("email", email);
@@ -132,6 +140,83 @@ function buildInviteEmailHtml(params: {
 </html>`;
 }
 
+function buildFamilyLinkEmailHtml(params: {
+  familyLink: string;
+  funeralHomeName: string;
+  decedentName: string;
+  status: string;
+  assignedStaffName?: string | null;
+  assignedStaffPhone?: string | null;
+  funeralHomePhone?: string | null;
+  funeralHomeAddress?: string | null;
+}): string {
+  const safeLink = escapeHtml(params.familyLink);
+  const safeFuneralHomeName = escapeHtml(params.funeralHomeName);
+  const safeDecedentName = escapeHtml(params.decedentName);
+  const safeStatus = escapeHtml(params.status.replaceAll("_", " "));
+  const safeAssignedStaffName = escapeHtml(params.assignedStaffName?.trim() || "Not assigned");
+  const safeAssignedStaffPhone = escapeHtml(params.assignedStaffPhone?.trim() || "Not provided");
+  const safeFuneralHomePhone = escapeHtml(params.funeralHomePhone?.trim() || "Not provided");
+  const safeFuneralHomeAddress = escapeHtml(params.funeralHomeAddress?.trim() || "Not provided");
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Service status update</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#F5F0EB;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#F5F0EB;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;background:#FFFFFF;border:1px solid #E0DAD4;border-radius:16px;overflow:hidden;">
+            <tr>
+              <td style="background:#2D6A4F;padding:24px 28px;">
+                <h1 style="margin:0;color:#FFFFFF;font-family:Arial,Helvetica,sans-serif;font-size:24px;line-height:1.3;">
+                  Family service update
+                </h1>
+                <p style="margin:8px 0 0 0;color:#E8F5EE;font-family:Arial,Helvetica,sans-serif;font-size:14px;">
+                  ${safeFuneralHomeName}
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px;">
+                <p style="margin:0 0 10px 0;color:#1A1A1A;font-family:Arial,Helvetica,sans-serif;font-size:16px;">
+                  Service details
+                </p>
+                <p style="margin:0 0 6px 0;color:#1A1A1A;font-family:Arial,Helvetica,sans-serif;font-size:15px;">Decedent: <strong>${safeDecedentName}</strong></p>
+                <p style="margin:0 0 6px 0;color:#1A1A1A;font-family:Arial,Helvetica,sans-serif;font-size:15px;">Current status: <strong>${safeStatus}</strong></p>
+                <p style="margin:0 0 6px 0;color:#1A1A1A;font-family:Arial,Helvetica,sans-serif;font-size:15px;">Assigned team member: <strong>${safeAssignedStaffName}</strong></p>
+                <p style="margin:0 0 6px 0;color:#1A1A1A;font-family:Arial,Helvetica,sans-serif;font-size:15px;">Team contact: <strong>${safeAssignedStaffPhone}</strong></p>
+                <p style="margin:0 0 6px 0;color:#1A1A1A;font-family:Arial,Helvetica,sans-serif;font-size:15px;">Funeral home phone: <strong>${safeFuneralHomePhone}</strong></p>
+                <p style="margin:0 0 14px 0;color:#1A1A1A;font-family:Arial,Helvetica,sans-serif;font-size:15px;">Funeral home address: <strong>${safeFuneralHomeAddress}</strong></p>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td align="center" style="border-radius:12px;background:#E07B2A;">
+                      <a href="${safeLink}" target="_blank" style="display:inline-block;padding:14px 22px;color:#FFFFFF;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;">
+                        Open family status page
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:18px 0 0 0;color:#888888;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.6;">
+                  If the button does not work, copy and paste this URL:
+                </p>
+                <p style="margin:8px 0 0 0;word-break:break-all;">
+                  <a href="${safeLink}" target="_blank" style="color:#2D6A4F;font-family:Arial,Helvetica,sans-serif;font-size:13px;">${safeLink}</a>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
 function formatSenderLabel(senderName?: string | null, senderEmail?: string | null): string {
   const name = senderName?.trim() ?? "";
   const email = senderEmail?.trim() ?? "";
@@ -205,6 +290,72 @@ export async function defaultInviteUserByEmail(input: InviteByEmailInput): Promi
   } catch (error) {
     const err = new Error(getProviderErrorMessage(error));
     Object.assign(err, { name: "SendGridInviteError" });
+    throw err;
+  }
+}
+
+export async function sendFamilyLinkByEmail(input: {
+  email: string;
+  familyLink: string;
+  decedentName: string;
+  status: string;
+  funeralHomeName?: string | null;
+  funeralHomePhone?: string | null;
+  funeralHomeAddress?: string | null;
+  assignedStaffName?: string | null;
+  assignedStaffPhone?: string | null;
+}): Promise<void> {
+  const toEmail = input.email.trim();
+  const apiKey = process.env.SENDGRID_API_KEY?.trim();
+  const fromEmail = process.env.INVITE_FROM_EMAIL?.trim();
+  const fromName = process.env.INVITE_FROM_NAME?.trim() || "EverRoute Funeral";
+
+  if (!apiKey || !fromEmail) {
+    throw new FamilyLinkNotConfiguredError();
+  }
+
+  if (!toEmail || !isValidEmail(toEmail)) {
+    const error = new Error("A valid family email is required.");
+    Object.assign(error, { name: "InvalidFamilyEmailError" });
+    throw error;
+  }
+
+  sendgridMail.setApiKey(apiKey);
+  const funeralHomeName = input.funeralHomeName?.trim() || fromName;
+  const textBody = [
+    `${funeralHomeName} has shared a family service update.`,
+    "",
+    `Decedent: ${input.decedentName}`,
+    `Status: ${input.status.replaceAll("_", " ")}`,
+    `Assigned staff: ${input.assignedStaffName?.trim() || "Not assigned"}`,
+    `Assigned staff phone: ${input.assignedStaffPhone?.trim() || "Not provided"}`,
+    `Funeral home phone: ${input.funeralHomePhone?.trim() || "Not provided"}`,
+    "",
+    `Open status page: ${input.familyLink}`,
+  ].join("\n");
+
+  const htmlBody = buildFamilyLinkEmailHtml({
+    familyLink: input.familyLink,
+    funeralHomeName,
+    decedentName: input.decedentName,
+    status: input.status,
+    assignedStaffName: input.assignedStaffName,
+    assignedStaffPhone: input.assignedStaffPhone,
+    funeralHomePhone: input.funeralHomePhone,
+    funeralHomeAddress: input.funeralHomeAddress,
+  });
+
+  try {
+    await sendgridMail.send({
+      to: toEmail,
+      from: { email: fromEmail, name: fromName },
+      subject: `Service update from ${funeralHomeName}`,
+      text: textBody,
+      html: htmlBody,
+    });
+  } catch (error) {
+    const err = new Error(getProviderErrorMessage(error));
+    Object.assign(err, { name: "SendGridFamilyLinkError" });
     throw err;
   }
 }

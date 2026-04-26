@@ -6,6 +6,11 @@ export type FamilyAssignmentView = {
   status: string;
   eta_note: string | null;
   support_contact_phone: string;
+  funeral_home_name?: string | null;
+  funeral_home_address?: string | null;
+  assigned_staff_name?: string | null;
+  assigned_staff_phone?: string | null;
+  assigned_staff_email?: string | null;
 };
 
 export type FamilyTokenResolveResult =
@@ -39,6 +44,11 @@ type AssignmentTokenRow = {
   share_token_revoked_at: Date | null;
   share_token_consumed_at: Date | null;
   share_token_one_time: boolean;
+  assigned_staff_name: string | null;
+  assigned_staff_phone: string | null;
+  assigned_staff_email: string | null;
+  funeral_home_name: string | null;
+  funeral_home_address: string | null;
   funeral_home_phone: string | null;
 };
 
@@ -66,9 +76,15 @@ export const defaultFamilyTokenService: FamilyTokenService = {
           pa.share_token_revoked_at,
           pa.share_token_consumed_at,
           pa.share_token_one_time,
+          sm.name AS assigned_staff_name,
+          sm.phone AS assigned_staff_phone,
+          sm.email AS assigned_staff_email,
+          s.funeral_home_name,
+          s.funeral_home_address,
           s.funeral_home_phone
         FROM pickup_assignments pa
-        LEFT JOIN settings s ON s.org_id = pa.org_id
+        LEFT JOIN staff_members sm ON sm.id = pa.assigned_staff_id
+        LEFT JOIN funeral_homes s ON s.id = pa.org_id
         WHERE pa.share_token = $1
         FOR UPDATE OF pa
         LIMIT 1
@@ -123,6 +139,11 @@ export const defaultFamilyTokenService: FamilyTokenService = {
         status: row.status,
         eta_note: formatEtaNote(row.eta_time),
         support_contact_phone: row.funeral_home_phone?.trim() ?? "",
+        funeral_home_name: row.funeral_home_name?.trim() ?? null,
+        funeral_home_address: row.funeral_home_address?.trim() ?? null,
+        assigned_staff_name: row.assigned_staff_name?.trim() ?? null,
+        assigned_staff_phone: row.assigned_staff_phone?.trim() ?? null,
+        assigned_staff_email: row.assigned_staff_email?.trim() ?? null,
       };
 
       await client.query("COMMIT");

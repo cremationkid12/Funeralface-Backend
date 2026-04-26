@@ -44,14 +44,14 @@ export const defaultSettingsService: SettingsService = {
     const result = await pool.query<SettingsRecord>(
       `
       SELECT
-        org_id,
+        id AS org_id,
         funeral_home_name,
         funeral_home_phone,
         funeral_home_address,
         logo_url,
         default_message
-      FROM settings
-      WHERE org_id = $1
+      FROM funeral_homes
+      WHERE id = $1
       LIMIT 1
       `,
       [orgId],
@@ -76,9 +76,8 @@ export const defaultSettingsService: SettingsService = {
 
     const result = await pool.query<SettingsRecord>(
       `
-      INSERT INTO settings (
+      INSERT INTO funeral_homes (
         id,
-        org_id,
         funeral_home_name,
         funeral_home_phone,
         funeral_home_address,
@@ -86,7 +85,6 @@ export const defaultSettingsService: SettingsService = {
         default_message
       )
       VALUES (
-        'settings-' || $1,
         $1,
         $2,
         $3,
@@ -94,7 +92,7 @@ export const defaultSettingsService: SettingsService = {
         $5,
         $6
       )
-      ON CONFLICT (org_id)
+      ON CONFLICT (id)
       DO UPDATE SET
         funeral_home_name = EXCLUDED.funeral_home_name,
         funeral_home_phone = EXCLUDED.funeral_home_phone,
