@@ -21,6 +21,8 @@ export type PickupAssignmentRecord = {
   contact_phone: string;
   notes: string | null;
   assigned_staff_id: string | null;
+  assigned_staff_name?: string | null;
+  assigned_staff_profile_image_url?: string | null;
   status: AssignmentStatus;
   created_at?: string;
 };
@@ -126,12 +128,15 @@ export const defaultAssignmentService: AssignmentService = {
     const result = await pool.query<PickupAssignmentRecord>(
       `
       SELECT
-        id, org_id, decedent_name, pickup_address, contact_name, contact_phone,
-        notes, assigned_staff_id, status, created_at,
-        share_token, share_token_expires_at, share_token_one_time
-      FROM pickup_assignments
-      WHERE org_id = $1
-      ORDER BY created_at ${direction}
+        pa.id, pa.org_id, pa.decedent_name, pa.pickup_address, pa.contact_name, pa.contact_phone,
+        pa.notes, pa.assigned_staff_id, sm.name AS assigned_staff_name,
+        sm.profile_image_url AS assigned_staff_profile_image_url,
+        pa.status, pa.created_at,
+        pa.share_token, pa.share_token_expires_at, pa.share_token_one_time
+      FROM pickup_assignments pa
+      LEFT JOIN staff_members sm ON sm.id = pa.assigned_staff_id
+      WHERE pa.org_id = $1
+      ORDER BY pa.created_at ${direction}
       `,
       [orgId],
     );
