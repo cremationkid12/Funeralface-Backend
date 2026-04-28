@@ -12,6 +12,7 @@ export type AuthenticatedRequest = Request & {
     name?: string;
     provider?: string;
   };
+  file?: Express.Multer.File;
 };
 
 type JwtPayload = {

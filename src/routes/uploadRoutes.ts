@@ -18,7 +18,10 @@ function handleMulterError(error: unknown, _req: Request, res: Response, next: N
     return;
   }
 
-  if (error.code === "LIMIT_FILE_SIZE") {
+  const code = typeof error.code === "string" ? error.code : "";
+  const message = typeof error.message === "string" ? error.message : "Upload failed.";
+
+  if (code === "LIMIT_FILE_SIZE") {
     res.status(400).json({
       code: "bad_request",
       message: "Image exceeds max size limit.",
@@ -28,7 +31,7 @@ function handleMulterError(error: unknown, _req: Request, res: Response, next: N
 
   res.status(400).json({
     code: "bad_request",
-    message: error.message,
+    message,
   });
 }
 
