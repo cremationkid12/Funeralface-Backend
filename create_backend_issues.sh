@@ -8,7 +8,7 @@ fi
 
 if [[ $# -lt 1 ]]; then
   echo "Usage: $0 <owner/repo>"
-  echo "Example: $0 your-org/funeralface-api"
+  echo "Example: $0 your-org/everroute-api"
   exit 1
 fi
 

@@ -24,7 +24,7 @@ export type StorageUploadService = {
   uploadImage: (input: UploadImageInput) => Promise<UploadImageResult>;
 };
 
-const DEFAULT_STORAGE_BUCKET = "funeralface-assets";
+const DEFAULT_STORAGE_BUCKET = "everroute-assets";
 
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();

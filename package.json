@@ -1,8 +1,8 @@
 {
-  "name": "funeralface-backend",
+  "name": "everroute-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "Backend API contract and server for Funeralface",
+  "description": "Backend API contract and server for Everroute",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
