@@ -37,9 +37,8 @@ export function createApp(deps: AppDependencies = {}): Express {
 
   const allowedOrigins = new Set(
     (process.env.ALLOWED_ORIGINS ?? "")
-      .replace(/^['"]|['"]$/g, "")
       .split(",")
-      .map((origin) => origin.trim().replace(/^['"]|['"]$/g, ""))
+      .map((origin) => origin.trim())
       .filter(Boolean),
   );
   app.use((req, res, next) => {
