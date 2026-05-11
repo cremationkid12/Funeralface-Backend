@@ -155,6 +155,7 @@ export async function postGoogleLogin(
   deps: AuthControllerDeps,
 ): Promise<void> {
   const idToken = typeof req.body?.id_token === "string" ? req.body.id_token.trim() : "";
+  const inviteToken = typeof req.body?.invite_token === "string" ? req.body.invite_token.trim() : "";
   if (!idToken) {
     res.status(400).json({
       code: "bad_request",
@@ -164,7 +165,7 @@ export async function postGoogleLogin(
   }
   try {
     const data = await deps.authService.loginWithGoogle(idToken);
-    if (process.env.DATABASE_URL?.trim()) {
+    if (process.env.DATABASE_URL?.trim() && !inviteToken) {
       await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, "", null, "google");
     }
     res.status(200).json(data);
