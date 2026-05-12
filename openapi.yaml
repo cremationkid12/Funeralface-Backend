@@ -1,10 +1,10 @@
 openapi: 3.0.3
 info:
-  title: Funeralface API
+  title: Everroute API
   version: 1.0.0
-  description: REST API contract for Funeralface backend and mobile integration.
+  description: REST API contract for Everroute backend and mobile integration.
   contact:
-    name: Funeralface Engineering
+    name: Everroute Engineering
     email: engineering@example.com
 servers:
   - url: https://api.example.com

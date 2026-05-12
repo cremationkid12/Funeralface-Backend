@@ -24,6 +24,9 @@ const fakeAuthService: AuthService = {
       user_id: "u-google",
       access_token: "at-google",
       refresh_token: "rt-google",
+      email: "google-user@example.com",
+      name: "Google User",
+      avatar_url: null,
     };
   },
   async refresh(_refreshToken) {

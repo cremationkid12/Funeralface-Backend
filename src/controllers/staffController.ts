@@ -124,14 +124,7 @@ export async function postStaff(
 ): Promise<void> {
   const orgId = req.auth?.orgId;
   const actorUserId = req.auth?.userId;
-  if (!orgId) {
-    res.status(401).json({
-      code: "unauthorized",
-      message: "Authentication is required.",
-    });
-    return;
-  }
-  if (!actorUserId) {
+  if (!orgId || !actorUserId) {
     res.status(401).json({
       code: "unauthorized",
       message: "Authentication is required.",
@@ -177,14 +170,7 @@ export async function patchStaff(
 ): Promise<void> {
   const orgId = req.auth?.orgId;
   const actorUserId = req.auth?.userId;
-  if (!orgId) {
-    res.status(401).json({
-      code: "unauthorized",
-      message: "Authentication is required.",
-    });
-    return;
-  }
-  if (!actorUserId) {
+  if (!orgId || !actorUserId) {
     res.status(401).json({
       code: "unauthorized",
       message: "Authentication is required.",
@@ -275,14 +261,7 @@ export async function deleteStaff(
 ): Promise<void> {
   const orgId = req.auth?.orgId;
   const actorUserId = req.auth?.userId;
-  if (!orgId) {
-    res.status(401).json({
-      code: "unauthorized",
-      message: "Authentication is required.",
-    });
-    return;
-  }
-  if (!actorUserId) {
+  if (!orgId || !actorUserId) {
     res.status(401).json({
       code: "unauthorized",
       message: "Authentication is required.",

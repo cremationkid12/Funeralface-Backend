@@ -71,7 +71,6 @@ export async function postAssignment(
   const notes = typeof body.notes === "string" ? body.notes : null;
   const assigned_staff_id = typeof body.assigned_staff_id === "string" ? body.assigned_staff_id : null;
   const rawStatus = typeof body.status === "string" ? body.status : undefined;
-  let status: AssignmentStatus | undefined;
 
   if (!decedent_name || !pickup_address || !contact_name || !contact_phone) {
     res.status(400).json({
@@ -81,16 +80,14 @@ export async function postAssignment(
     return;
   }
 
-  if (rawStatus && !isAssignmentStatus(rawStatus)) {
+  if (rawStatus !== undefined && !isAssignmentStatus(rawStatus)) {
     res.status(400).json({
       code: "bad_request",
       message: "Invalid assignment status.",
     });
     return;
   }
-  if (rawStatus && isAssignmentStatus(rawStatus)) {
-    status = rawStatus;
-  }
+  const status: AssignmentStatus | undefined = rawStatus;
   if (body.eta_time !== undefined && eta_time === undefined) {
     res.status(400).json({
       code: "bad_request",

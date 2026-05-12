@@ -122,30 +122,40 @@ export const defaultStaffService: StaffService = {
     const existing = await this.findOrgRoleByUserId(userId);
     const provider = normalizeProvider(providerInput);
     const profileImageUrl = profileImageUrlInput?.trim() || null;
+    const safeIncomingEmail = email.trim();
+    const safeIncomingName = displayNameInput?.trim() ?? "";
     const pool = getPgPool();
     if (existing) {
+      // Backfill name/email when we now have better data than what was
+      // initially seeded (e.g. a Google login whose first bootstrap ran
+      // before metadata was wired through). We only overwrite the literal
+      // "Admin" placeholder or NULL/empty values so any user-customised
+      // values are preserved.
       await pool.query(
         `
         UPDATE staff_members
         SET
           provider = $2,
           profile_image_url = COALESCE($3, profile_image_url),
+          name = CASE
+            WHEN $4 <> '' AND (name = 'Admin' OR name = '' OR name IS NULL) THEN $4
+            ELSE name
+          END,
+          email = COALESCE(email, NULLIF($5, '')),
           updated_at = NOW()
         WHERE id = $1
         `,
-        [userId, provider, profileImageUrl],
+        [userId, provider, profileImageUrl, safeIncomingName, safeIncomingEmail],
       );
       return existing;
     }
 
     const orgId = randomUUID();
-    const safeEmail = email.trim();
-    const safeDisplayName = displayNameInput?.trim() ?? "";
-    const displayName = safeDisplayName
-      ? safeDisplayName
-      : safeEmail.includes("@")
-        ? safeEmail.split("@")[0]!.trim() || "Admin"
-        : safeEmail || "Admin";
+    const displayName = safeIncomingName
+      ? safeIncomingName
+      : safeIncomingEmail.includes("@")
+        ? safeIncomingEmail.split("@")[0]!.trim() || "Admin"
+        : safeIncomingEmail || "Admin";
 
     await defaultSettingsService.upsertByOrgId(orgId, {
       funeral_home_name: displayName,
@@ -161,7 +171,15 @@ export const defaultStaffService: StaffService = {
         INSERT INTO staff_members (id, org_id, name, phone, email, role, active, provider, profile_image_url)
         VALUES ($1, $2, $3, $4, $5, 'admin', true, $6, $7)
         `,
-        [userId, orgId, displayName, "0000000000", safeEmail || null, provider, profileImageUrl],
+        [
+          userId,
+          orgId,
+          displayName,
+          "0000000000",
+          safeIncomingEmail || null,
+          provider,
+          profileImageUrl,
+        ],
       );
       await client.query(
         `

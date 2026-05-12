@@ -42,7 +42,7 @@ export function setupSwaggerUi(app: Express): void {
   try {
     const openApiPath = path.resolve(resolveOpenApiPath());
     const spec = loadOpenApiDocument(openApiPath);
-    app.use("/docs", swaggerUi.serve, swaggerUi.setup(spec, { customSiteTitle: "Funeralface API docs" }));
+    app.use("/docs", swaggerUi.serve, swaggerUi.setup(spec, { customSiteTitle: "Everroute API docs" }));
     app.get("/openapi.yaml", (_req, res) => {
       res.type("application/yaml").sendFile(openApiPath);
     });

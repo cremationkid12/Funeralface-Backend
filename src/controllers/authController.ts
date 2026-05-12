@@ -97,7 +97,7 @@ export async function postRegister(
     return;
   }
   try {
-    const data = await deps.authService.register(email, password);
+    const data = await deps.authService.register(email, password, name);
     if (data.user_id && data.access_token && process.env.DATABASE_URL?.trim() && !inviteToken) {
       await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, email, name, "email");
     }
@@ -166,9 +166,19 @@ export async function postGoogleLogin(
   try {
     const data = await deps.authService.loginWithGoogle(idToken);
     if (process.env.DATABASE_URL?.trim() && !inviteToken) {
-      await deps.staffService.bootstrapOrgAndAdminForUser(data.user_id, "", null, "google");
+      await deps.staffService.bootstrapOrgAndAdminForUser(
+        data.user_id,
+        data.email,
+        data.name || null,
+        "google",
+        data.avatar_url,
+      );
     }
-    res.status(200).json(data);
+    res.status(200).json({
+      user_id: data.user_id,
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
   } catch (error) {
     if (error instanceof AuthNotConfiguredError) {
       res.status(503).json({ code: "service_unavailable", message: error.message });
