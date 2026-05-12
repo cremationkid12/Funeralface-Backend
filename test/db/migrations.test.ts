@@ -28,9 +28,10 @@ test("migrations create core tables", async () => {
     const tableNames = result.rows.map((row) => row.table_name);
     assert.deepEqual(tableNames, [
       "assignment_audit_logs",
+      "funeral_homes",
       "pickup_assignments",
-      "settings",
       "staff_audit_logs",
+      "staff_invites",
       "staff_members",
     ]);
   } finally {
