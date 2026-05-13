@@ -139,6 +139,8 @@ export async function postStaff(
   const bio = typeof body.bio === "string" ? body.bio : null;
   const role = typeof body.role === "string" ? body.role : undefined;
   const active = typeof body.active === "boolean" ? body.active : undefined;
+  const profileImageUrl =
+    typeof body.profile_image_url === "string" ? body.profile_image_url.trim() || null : undefined;
 
   if (!name || !phone) {
     res.status(400).json({
@@ -157,6 +159,7 @@ export async function postStaff(
       bio,
       role,
       active,
+      profile_image_url: profileImageUrl,
     } satisfies StaffCreateInput,
     actorUserId,
   );
