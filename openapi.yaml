@@ -143,7 +143,10 @@ paths:
   /v1/auth/password/recover:
     post:
       tags: [Auth]
-      summary: Send password recovery email
+      summary: Send a password reset email OTP (8 digits; Supabase hosted default)
+      description: >
+        Triggers Supabase sign-in OTP for an existing user (`shouldCreateUser: false`).
+        Configure the Supabase email template to deliver an 8-digit code (EverRoute API validates 8 digits).
       operationId: postAuthPasswordRecover
       requestBody:
         required: true
@@ -160,6 +163,68 @@ paths:
                 $ref: '#/components/schemas/AuthRecoverPasswordResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
+        '503':
+          description: Auth service not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/auth/password/otp/verify:
+    post:
+      tags: [Auth]
+      summary: Verify 8-digit reset code and obtain a short-lived session
+      description: >
+        Exchanges the emailed OTP for access and refresh tokens.
+        The client then submits the new password via password/reset-complete without persisting this session until reset succeeds.
+      operationId: postAuthPasswordOtpVerify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPasswordOtpVerifyRequest'
+      responses:
+        '200':
+          description: OTP valid; session tokens returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '503':
+          description: Auth service not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/auth/password/reset-complete:
+    post:
+      tags: [Auth]
+      summary: Set a new password using session tokens from OTP verify or recovery link
+      description: >
+        Accepts access_token and refresh_token from email OTP verification or from a Supabase recovery redirect,
+        updates the password, and returns a refreshed session.
+      operationId: postAuthPasswordResetComplete
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPasswordResetCompleteRequest'
+      responses:
+        '200':
+          description: Password updated and new session issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '503':
           description: Auth service not configured
           content:
@@ -651,6 +716,30 @@ components:
         email:
           type: string
           format: email
+    AuthPasswordResetCompleteRequest:
+      type: object
+      required: [access_token, refresh_token, password]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        password:
+          type: string
+          minLength: 8
+    AuthPasswordOtpVerifyRequest:
+      type: object
+      required: [email, token]
+      properties:
+        email:
+          type: string
+          format: email
+        token:
+          type: string
+          minLength: 8
+          maxLength: 8
+          pattern: '^[0-9]{8}$'
+          description: Numeric 8-digit OTP from email (matches Supabase hosted mailer default).
     StaffInviteRequest:
       type: object
       required: [email]

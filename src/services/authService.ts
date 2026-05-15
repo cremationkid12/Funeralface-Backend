@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { mailerOtpDigits } from "../auth/otpConfig";
 
 export class AuthNotConfiguredError extends Error {
   constructor(message = "Supabase auth service is not configured.") {
@@ -45,6 +46,12 @@ export type AuthService = {
   refresh(refreshToken: string): Promise<RefreshResult>;
   logout(accessToken: string): Promise<void>;
   recoverPassword(email: string): Promise<void>;
+  verifyPasswordResetOtp(email: string, otp: string): Promise<LoginResult>;
+  completePasswordRecovery(
+    accessToken: string,
+    refreshToken: string,
+    newPassword: string,
+  ): Promise<LoginResult>;
 };
 
 function getAuthClient() {
@@ -160,7 +167,70 @@ export const defaultAuthService: AuthService = {
 
   async recoverPassword(email: string): Promise<void> {
     const client = getAuthClient();
-    const { error } = await client.auth.resetPasswordForEmail(email);
+    // Email OTP length matches `PASSWORD_RESET_MAILER_OTP_DIGITS` in otpConfig (Supabase hosted default: 8).
+    const { error } = await client.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+      },
+    });
     if (error) throw error;
+  },
+
+  async verifyPasswordResetOtp(email: string, otp: string): Promise<LoginResult> {
+    const client = getAuthClient();
+    const token = otp.trim();
+    const len = mailerOtpDigits();
+    if (!new RegExp(`^\\d{${len}}$`).test(token)) {
+      throw new Error(`OTP must be a ${len}-digit code.`);
+    }
+    const { data, error } = await client.auth.verifyOtp({
+      email: email.trim(),
+      token,
+      type: "email",
+    });
+    if (error) throw error;
+    const session = data.session;
+    const user = data.user;
+    if (!user?.id || !session?.access_token || !session?.refresh_token) {
+      throw new Error("OTP verification did not return a complete auth session.");
+    }
+    return {
+      user_id: user.id,
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    };
+  },
+
+  async completePasswordRecovery(
+    accessToken: string,
+    refreshToken: string,
+    newPassword: string,
+  ): Promise<LoginResult> {
+    const client = getAuthClient();
+    const { error: setSessionError } = await client.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (setSessionError) throw setSessionError;
+
+    const { error } = await client.auth.updateUser({
+      password: newPassword,
+    });
+    if (error) throw error;
+
+    const { data: sessionWrap, error: getSessionError } = await client.auth.getSession();
+    if (getSessionError) throw getSessionError;
+    const session = sessionWrap.session;
+    const userId = session?.user?.id;
+    if (!userId || !session.access_token || !session.refresh_token) {
+      throw new Error("Password reset did not return a complete auth session.");
+    }
+
+    return {
+      user_id: userId,
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    };
   },
 };

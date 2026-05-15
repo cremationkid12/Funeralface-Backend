@@ -10,6 +10,8 @@ import {
   postLogin,
   postLogout,
   postPasswordRecover,
+  postPasswordResetComplete,
+  postPasswordVerifyOtp,
   postRefresh,
   postRegister,
   type AuthControllerDeps,
@@ -37,6 +39,12 @@ export function createAuthRouter(services: AppServices): Router {
   router.post("/logout", (req: Request, res: Response) => postLogout(req, res, services.authService));
   router.post("/password/recover", (req: Request, res: Response) =>
     postPasswordRecover(req, res, services.authService),
+  );
+  router.post("/password/otp/verify", (req: Request, res: Response) =>
+    postPasswordVerifyOtp(req, res, services.authService),
+  );
+  router.post("/password/reset-complete", (req: Request, res: Response) =>
+    postPasswordResetComplete(req, res, services.authService),
   );
   router.post("/invites/accept", requireAuthUser, (req: Request, res: Response) =>
     postAcceptInvite(req as AuthenticatedRequest, res, services.staffInviteService),

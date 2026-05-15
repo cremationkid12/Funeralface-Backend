@@ -38,6 +38,20 @@ const fakeAuthService: AuthService = {
   },
   async logout(_accessToken) {},
   async recoverPassword(_email) {},
+  async completePasswordRecovery(_accessToken, _refreshToken, _password) {
+    return {
+      user_id: "u-recover-complete",
+      access_token: "at-recover-complete",
+      refresh_token: "rt-recover-complete",
+    };
+  },
+  async verifyPasswordResetOtp(_email, _token) {
+    return {
+      user_id: "u-otp",
+      access_token: "at-otp",
+      refresh_token: "rt-otp",
+    };
+  },
 };
 
 function createAuthAppForTests() {
@@ -108,4 +122,44 @@ test("POST /v1/auth/password/recover returns 202", async () => {
     .send({ email: "user@example.com" });
   assert.equal(res.status, 202);
   assert.equal(res.body.status, "recovery_requested");
+});
+
+test("POST /v1/auth/password/reset-complete validates body", async () => {
+  const app = createAuthAppForTests();
+  const res = await request(app).post("/v1/auth/password/reset-complete").send({
+    access_token: "a",
+    refresh_token: "r",
+    password: "short",
+  });
+  assert.equal(res.status, 400);
+});
+
+test("POST /v1/auth/password/reset-complete returns session", async () => {
+  const app = createAuthAppForTests();
+  const res = await request(app).post("/v1/auth/password/reset-complete").send({
+    access_token: "at-rec",
+    refresh_token: "rt-rec",
+    password: "password123",
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.access_token, "at-recover-complete");
+});
+
+test("POST /v1/auth/password/otp/verify validates body", async () => {
+  const app = createAuthAppForTests();
+  const res = await request(app).post("/v1/auth/password/otp/verify").send({
+    email: "user@example.com",
+    token: "12",
+  });
+  assert.equal(res.status, 400);
+});
+
+test("POST /v1/auth/password/otp/verify returns session", async () => {
+  const app = createAuthAppForTests();
+  const res = await request(app).post("/v1/auth/password/otp/verify").send({
+    email: "user@example.com",
+    token: "12345678",
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.access_token, "at-otp");
 });

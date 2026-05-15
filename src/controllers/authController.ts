@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { isValidNumericMailerOtp, mailerOtpDigits } from "../auth/otpConfig";
 import type { AuthenticatedRequest } from "../auth/authMiddleware";
 import { getUserFromSupabaseAccessToken } from "../auth/supabaseAccessTokenUser";
 import { isValidEmail } from "../services/inviteStaff";
@@ -236,6 +237,83 @@ export async function postLogout(req: Request, res: Response, authService: AuthS
     res.status(400).json({
       code: "auth_failed",
       message: error instanceof Error ? error.message : "Logout failed.",
+    });
+  }
+}
+
+export async function postPasswordVerifyOtp(
+  req: Request,
+  res: Response,
+  authService: AuthService,
+): Promise<void> {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+  const rawToken = typeof req.body?.token === "string" ? req.body.token.trim().replace(/\s+/g, "") : "";
+  if (!email || !isValidEmail(email)) {
+    res.status(400).json({
+      code: "bad_request",
+      message: "A valid email address is required.",
+    });
+    return;
+  }
+  if (!isValidNumericMailerOtp(rawToken)) {
+    const len = mailerOtpDigits();
+    res.status(400).json({
+      code: "bad_request",
+      message: `A ${len}-digit verification code is required.`,
+    });
+    return;
+  }
+  try {
+    const data = await authService.verifyPasswordResetOtp(email, rawToken);
+    res.status(200).json({
+      user_id: data.user_id,
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
+  } catch (error) {
+    if (error instanceof AuthNotConfiguredError) {
+      res.status(503).json({ code: "service_unavailable", message: error.message });
+      return;
+    }
+    res.status(401).json({
+      code: "unauthorized",
+      message: error instanceof Error ? error.message : "Invalid or expired verification code.",
+    });
+  }
+}
+
+export async function postPasswordResetComplete(
+  req: Request,
+  res: Response,
+  authService: AuthService,
+): Promise<void> {
+  const accessToken =
+    typeof req.body?.access_token === "string" ? req.body.access_token.trim() : "";
+  const refreshToken =
+    typeof req.body?.refresh_token === "string" ? req.body.refresh_token.trim() : "";
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  if (!accessToken || !refreshToken || password.length < 8) {
+    res.status(400).json({
+      code: "bad_request",
+      message: "access_token, refresh_token, and password (min 8 characters) are required.",
+    });
+    return;
+  }
+  try {
+    const data = await authService.completePasswordRecovery(accessToken, refreshToken, password);
+    res.status(200).json({
+      user_id: data.user_id,
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
+  } catch (error) {
+    if (error instanceof AuthNotConfiguredError) {
+      res.status(503).json({ code: "service_unavailable", message: error.message });
+      return;
+    }
+    res.status(401).json({
+      code: "unauthorized",
+      message: error instanceof Error ? error.message : "Password reset failed.",
     });
   }
 }
