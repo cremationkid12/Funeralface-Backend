@@ -8,26 +8,15 @@ import {
   type AssignmentUpdateInput,
 } from "../services/assignmentService";
 import { FamilyLinkNotConfiguredError, isValidEmail, sendFamilyLinkByEmail } from "../services/inviteStaff";
+import { parseEtaTimeFromBody, serializeAssignmentEtaTime } from "../utils/etaTime";
 
-function parseEtaTime(value: unknown): Date | null | undefined {
-  if (value === undefined) return undefined;
-  if (value === null || value === "") return null;
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  // Support "HH:mm" from UI time picker payloads.
-  const hhmm = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(trimmed);
-  if (hhmm) {
-    const now = new Date();
-    const date = new Date(now);
-    date.setHours(Number(hhmm[1]), Number(hhmm[2]), 0, 0);
-    return date;
-  }
-
-  const parsed = new Date(trimmed);
-  if (Number.isNaN(parsed.getTime())) return undefined;
-  return parsed;
+function serializeAssignmentResponse<T extends { eta_time?: Date | string | null }>(
+  row: T,
+): Omit<T, "eta_time"> & { eta_time: string | null } {
+  return {
+    ...row,
+    eta_time: serializeAssignmentEtaTime(row.eta_time),
+  };
 }
 
 export async function getAssignments(
@@ -45,7 +34,7 @@ export async function getAssignments(
   }
   const sort = typeof req.query.sort === "string" ? req.query.sort : "-created_at";
   const items = await assignmentService.listByOrgId(orgId, sort);
-  res.status(200).json({ items });
+  res.status(200).json({ items: items.map(serializeAssignmentResponse) });
 }
 
 export async function postAssignment(
@@ -67,7 +56,7 @@ export async function postAssignment(
   const pickup_address = typeof body.pickup_address === "string" ? body.pickup_address : "";
   const contact_name = typeof body.contact_name === "string" ? body.contact_name : "";
   const contact_phone = typeof body.contact_phone === "string" ? body.contact_phone : "";
-  const eta_time = parseEtaTime(body.eta_time);
+  const eta_time = parseEtaTimeFromBody(body.eta_time);
   const notes = typeof body.notes === "string" ? body.notes : null;
   const assigned_staff_id = typeof body.assigned_staff_id === "string" ? body.assigned_staff_id : null;
   const rawStatus = typeof body.status === "string" ? body.status : undefined;
@@ -91,7 +80,7 @@ export async function postAssignment(
   if (body.eta_time !== undefined && eta_time === undefined) {
     res.status(400).json({
       code: "bad_request",
-      message: "Invalid eta_time. Use an ISO datetime or HH:mm format.",
+      message: "Invalid eta_time. Use an ISO-8601 datetime with timezone offset.",
     });
     return;
   }
@@ -106,7 +95,7 @@ export async function postAssignment(
     assigned_staff_id,
     status,
   } satisfies AssignmentCreateInput);
-  res.status(201).json(created);
+  res.status(201).json(serializeAssignmentResponse(created));
 }
 
 export async function patchAssignment(
@@ -131,12 +120,12 @@ export async function patchAssignment(
   if (typeof body.pickup_address === "string") update.pickup_address = body.pickup_address;
   if (typeof body.contact_name === "string") update.contact_name = body.contact_name;
   if (typeof body.contact_phone === "string") update.contact_phone = body.contact_phone;
-  const eta_time = parseEtaTime(body.eta_time);
+  const eta_time = parseEtaTimeFromBody(body.eta_time);
   if (body.eta_time !== undefined) {
     if (eta_time === undefined) {
       res.status(400).json({
         code: "bad_request",
-        message: "Invalid eta_time. Use an ISO datetime or HH:mm format.",
+        message: "Invalid eta_time. Use an ISO-8601 datetime with timezone offset.",
       });
       return;
     }
@@ -193,7 +182,7 @@ export async function patchAssignment(
       });
       return;
     }
-    res.status(200).json(updated);
+    res.status(200).json(serializeAssignmentResponse(updated));
   } catch (error) {
     if (error instanceof Error && error.name === "InvalidStatusTransitionError") {
       res.status(400).json({

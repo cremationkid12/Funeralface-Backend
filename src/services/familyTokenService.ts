@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { serializeAssignmentEtaTime } from "../utils/etaTime";
 
 export type FamilyAssignmentView = {
   assignment_id: string;
@@ -62,8 +63,7 @@ type AssignmentTokenRow = {
 };
 
 function formatEtaNote(eta: Date | null): string | null {
-  if (!eta) return null;
-  return eta.toISOString();
+  return serializeAssignmentEtaTime(eta);
 }
 
 export const defaultFamilyTokenService: FamilyTokenService = {
@@ -151,7 +151,7 @@ export const defaultFamilyTokenService: FamilyTokenService = {
         decedent_name: row.decedent_name,
         status: row.status,
         pickup_address: row.pickup_address?.trim() ?? null,
-        eta_time: row.eta_time ? row.eta_time.toISOString() : null,
+        eta_time: formatEtaNote(row.eta_time),
         eta_note: formatEtaNote(row.eta_time),
         support_contact_phone: row.funeral_home_phone?.trim() ?? "",
         funeral_home_name: row.funeral_home_name?.trim() ?? null,
