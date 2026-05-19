@@ -5,6 +5,19 @@
 
 const HHMM_PATTERN = /^(\d{1,2}):(\d{2})$/;
 
+function logEtaDebug(event: string, details: Record<string, unknown>): void {
+  if (process.env.NODE_ENV === "production") return;
+  console.info(
+    "[AssignmentEta]",
+    event,
+    JSON.stringify({
+      server_now: new Date().toISOString(),
+      server_tz_offset_min: -new Date().getTimezoneOffset(),
+      ...details,
+    }),
+  );
+}
+
 function toDate(value: Date | string): Date | null {
   if (value instanceof Date) {
     return Number.isNaN(value.getTime()) ? null : value;
@@ -33,11 +46,19 @@ export function parseEtaTimeFromBody(value: unknown): Date | null | undefined {
     const now = new Date();
     const date = new Date(now);
     date.setHours(hours, minutes, 0, 0);
+    logEtaDebug("parse_body_hhmm", {
+      input: trimmed,
+      stored_utc_iso: date.toISOString(),
+    });
     return date;
   }
 
-  const parsed = new Date(trimmed)
+  const parsed = new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) return undefined;
+  logEtaDebug("parse_body_iso", {
+    input: trimmed,
+    stored_utc_iso: parsed.toISOString(),
+  });
   return parsed;
 }
 
@@ -47,5 +68,7 @@ export function serializeAssignmentEtaTime(
 ): string | null {
   const date = eta == null ? null : toDate(eta);
   if (!date) return null;
-  return date.toISOString();
+  const iso = date.toISOString();
+  logEtaDebug("serialize_api", { stored_utc_iso: iso });
+  return iso;
 }
