@@ -62,10 +62,6 @@ type AssignmentTokenRow = {
   funeral_home_phone: string | null;
 };
 
-function formatEtaNote(eta: Date | null): string | null {
-  return serializeAssignmentEtaTime(eta);
-}
-
 export const defaultFamilyTokenService: FamilyTokenService = {
   async resolveByToken(rawToken: string) {
     const pool = getPgPool();
@@ -151,8 +147,8 @@ export const defaultFamilyTokenService: FamilyTokenService = {
         decedent_name: row.decedent_name,
         status: row.status,
         pickup_address: row.pickup_address?.trim() ?? null,
-        eta_time: formatEtaNote(row.eta_time),
-        eta_note: formatEtaNote(row.eta_time),
+        eta_time: serializeAssignmentEtaTime(row.eta_time),
+        eta_note: serializeAssignmentEtaTime(row.eta_time),
         support_contact_phone: row.funeral_home_phone?.trim() ?? "",
         funeral_home_name: row.funeral_home_name?.trim() ?? null,
         funeral_home_logo_url: row.funeral_home_logo_url?.trim() ?? null,

@@ -1,7 +1,4 @@
-/**
- * ETA is stored as TIMESTAMPTZ (absolute instant).
- * Clients must send UTC ISO (`...Z`) or ISO with numeric offset — not bare local datetime.
- */
+/** ETA helpers: TIMESTAMPTZ in DB, ISO-8601 with timezone on the wire. */
 
 const HHMM_PATTERN = /^(\d{1,2}):(\d{2})$/;
 const HAS_TIMEZONE = /(?:[zZ]|[+-]\d{2}:?\d{2})$/;
@@ -14,11 +11,7 @@ function toDate(value: Date | string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-/**
- * Parse request `eta_time`.
- * - Required: ISO-8601 with `Z` or `±HH:mm` offset (from mobile `toUtc().toIso8601String()`).
- * - Legacy `HH:mm` only: rejected (return undefined) — forces timezone-safe payloads.
- */
+/** Parse request `eta_time` (ISO with `Z` or numeric offset only). */
 export function parseEtaTimeFromBody(value: unknown): Date | null | undefined {
   if (value === undefined) return undefined;
   if (value === null || value === "") return null;
@@ -26,11 +19,7 @@ export function parseEtaTimeFromBody(value: unknown): Date | null | undefined {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  if (HHMM_PATTERN.test(trimmed)) {
-    return undefined;
-  }
-
-  if (!HAS_TIMEZONE.test(trimmed)) {
+  if (HHMM_PATTERN.test(trimmed) || !HAS_TIMEZONE.test(trimmed)) {
     return undefined;
   }
 
@@ -39,7 +28,6 @@ export function parseEtaTimeFromBody(value: unknown): Date | null | undefined {
   return parsed;
 }
 
-/** UTC ISO string for API responses. */
 export function serializeAssignmentEtaTime(
   eta: Date | string | null | undefined,
 ): string | null {
