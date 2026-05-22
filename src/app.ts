@@ -18,6 +18,8 @@ import {
   type StaffInviteService,
 } from "./services/staffInviteService";
 import { defaultStorageUploadService, type StorageUploadService } from "./services/storageUploadService";
+import { defaultBillingService, type BillingService } from "./services/billingService";
+import { postBillingWebhook } from "./controllers/billingWebhookController";
 
 export type AppDependencies = {
   authService?: AuthService;
@@ -28,6 +30,7 @@ export type AppDependencies = {
   assignmentService?: AssignmentService;
   familyTokenService?: FamilyTokenService;
   storageUploadService?: StorageUploadService;
+  billingService?: BillingService;
   /** Override default in-memory rate limit (e.g. tests). */
   publicTokenRateLimit?: RequestHandler;
 };
@@ -57,18 +60,6 @@ export function createApp(deps: AppDependencies = {}): Express {
     next();
   });
 
-  app.use(express.json());
-  app.use((req, res, next) => {
-    const start = process.hrtime.bigint();
-    res.on("finish", () => {
-      const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
-      console.log(
-        `[API] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${durationMs.toFixed(1)}ms)`,
-      );
-    });
-    next();
-  });
-
   const services: AppServices = {
     inviteUserByEmail: deps.inviteUserByEmail ?? (() => Promise.reject(new Error("Invite service is not configured."))),
     authService: deps.authService ?? defaultAuthService,
@@ -77,6 +68,7 @@ export function createApp(deps: AppDependencies = {}): Express {
     assignmentService: deps.assignmentService ?? defaultAssignmentService,
     familyTokenService: deps.familyTokenService ?? defaultFamilyTokenService,
     storageUploadService: deps.storageUploadService ?? defaultStorageUploadService,
+    billingService: deps.billingService ?? defaultBillingService,
     publicTokenRateLimit:
       deps.publicTokenRateLimit ??
       createPublicTokenRateLimit({
@@ -99,6 +91,24 @@ export function createApp(deps: AppDependencies = {}): Express {
       });
     };
   }
+
+  app.post(
+    "/v1/billing/webhook",
+    express.raw({ type: "application/json" }),
+    (req, res) => postBillingWebhook(req, res, services.billingService),
+  );
+
+  app.use(express.json());
+  app.use((req, res, next) => {
+    const start = process.hrtime.bigint();
+    res.on("finish", () => {
+      const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+      console.log(
+        `[API] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${durationMs.toFixed(1)}ms)`,
+      );
+    });
+    next();
+  });
 
   registerV1Routes(app, services);
   setupSwaggerUi(app);
