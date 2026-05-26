@@ -2,7 +2,11 @@ import type { Response } from "express";
 import type { AuthenticatedRequest } from "../auth/authMiddleware";
 import type { StorageUploadService, UploadPurpose } from "../services/storageUploadService";
 
-const ALLOWED_PURPOSES: UploadPurpose[] = ["funeral_home_logo", "staff_photo"];
+const ALLOWED_PURPOSES: UploadPurpose[] = [
+  "funeral_home_logo",
+  "funeral_director_photo",
+  "staff_photo",
+];
 const ALLOWED_PURPOSE_SET = new Set<UploadPurpose>(ALLOWED_PURPOSES);
 const ALLOWED_MIME_TYPES = new Set([
   "image/png",
@@ -62,7 +66,8 @@ export async function postUploadImage(
   if (!purpose) {
     res.status(400).json({
       code: "bad_request",
-      message: "purpose must be one of: funeral_home_logo, staff_photo.",
+      message:
+        "purpose must be one of: funeral_home_logo, funeral_director_photo, staff_photo.",
     });
     return;
   }

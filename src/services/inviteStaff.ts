@@ -9,6 +9,12 @@ export type InviteByEmailInput = {
   invitedByUserId?: string;
 };
 
+/**
+ * Sends staff invites through Supabase Auth (`inviteUserByEmail`).
+ * Delivery (e.g. SendGrid) is configured in Supabase → Authentication → SMTP, not in this file.
+ * See README.md “Staff invites (SendGrid)”.
+ */
+
 export class InviteNotConfiguredError extends Error {
   override name = "InviteNotConfiguredError";
 
