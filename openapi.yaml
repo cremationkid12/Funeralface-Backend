@@ -873,8 +873,23 @@ components:
           type: string
     Settings:
       type: object
-      required: [funeral_home_name, funeral_home_phone, funeral_home_address]
+      required:
+        - director_name
+        - director_phone
+        - funeral_home_name
+        - funeral_home_phone
+        - funeral_home_address
       properties:
+        director_name:
+          type: string
+        director_phone:
+          type: string
+        director_email:
+          type: string
+          nullable: true
+        director_image_url:
+          type: string
+          nullable: true
         funeral_home_name:
           type: string
         funeral_home_phone:
@@ -890,6 +905,14 @@ components:
     SettingsUpdateRequest:
       type: object
       properties:
+        director_name:
+          type: string
+        director_phone:
+          type: string
+        director_email:
+          type: string
+        director_image_url:
+          type: string
         funeral_home_name:
           type: string
         funeral_home_phone:

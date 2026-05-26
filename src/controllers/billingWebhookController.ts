@@ -26,6 +26,7 @@ export async function postBillingWebhook(
 
   try {
     await billingService.handleWebhookEvent(rawBody, signature);
+    console.log("[billing] webhook handled successfully");
     res.status(200).json({ received: true });
   } catch (error) {
     console.error("[billing] webhook failed:", error);

@@ -21,11 +21,21 @@ export function createAssignmentRouter(services: AppServices): Router {
   );
 
   router.patch("/:id", requireAuth, (req: Request, res: Response) =>
-    patchAssignment(req as AuthenticatedRequest, res, services.assignmentService),
+    patchAssignment(
+      req as AuthenticatedRequest,
+      res,
+      services.assignmentService,
+      services.billingService,
+    ),
   );
 
   router.post("/:id/share/email", requireAuth, (req: Request, res: Response) =>
-    postShareFamilyLinkByEmail(req as AuthenticatedRequest, res, services.assignmentService),
+    postShareFamilyLinkByEmail(
+      req as AuthenticatedRequest,
+      res,
+      services.assignmentService,
+      services.billingService,
+    ),
   );
 
   return router;

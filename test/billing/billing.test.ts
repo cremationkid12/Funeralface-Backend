@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import request from "supertest";
 import { createApp } from "../../src/app";
 import {
+  assertOrgCanShareFamilyLinks,
   BILLING_PLAN_AMOUNT_CENTS,
   BILLING_TRIAL_DAYS,
   type BillingService,
@@ -34,6 +35,11 @@ function createInMemoryBillingService(): BillingService {
   return {
     async getSubscriptionView(orgId: string): Promise<SubscriptionView> {
       return store.get(orgId) ?? defaultView(orgId);
+    },
+
+    async assertOrgCanShareFamilyLinks(orgId: string): Promise<void> {
+      const view = await this.getSubscriptionView(orgId);
+      assertOrgCanShareFamilyLinks(view);
     },
 
     async createCheckoutSession(input) {

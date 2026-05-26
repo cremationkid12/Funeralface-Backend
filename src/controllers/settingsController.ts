@@ -35,7 +35,18 @@ export async function patchSettings(
   }
 
   const body = req.body as Record<string, unknown>;
+  const nullableStringKeys = new Set<keyof SettingsUpdateInput>([
+    "director_email",
+    "director_image_url",
+    "logo_url",
+    "default_message",
+  ]);
+
   const allowedKeys: (keyof SettingsUpdateInput)[] = [
+    "director_name",
+    "director_phone",
+    "director_email",
+    "director_image_url",
     "funeral_home_name",
     "funeral_home_phone",
     "funeral_home_address",
@@ -48,13 +59,29 @@ export async function patchSettings(
     const value = body[key];
     if (typeof value === "string") {
       const normalized = value.trim();
-      if ((key === "logo_url" || key === "default_message") && normalized.length === 0) {
-        update[key] = null;
+      if (nullableStringKeys.has(key)) {
+        const nullableKey = key as
+          | "director_email"
+          | "director_image_url"
+          | "logo_url"
+          | "default_message";
+        update[nullableKey] = normalized.length === 0 ? null : normalized;
       } else {
-        update[key] = normalized;
+        const requiredKey = key as
+          | "director_name"
+          | "director_phone"
+          | "funeral_home_name"
+          | "funeral_home_phone"
+          | "funeral_home_address";
+        update[requiredKey] = normalized;
       }
-    } else if ((key === "logo_url" || key === "default_message") && value === null) {
-      update[key] = null;
+    } else if (nullableStringKeys.has(key) && value === null) {
+      const nullableKey = key as
+        | "director_email"
+        | "director_image_url"
+        | "logo_url"
+        | "default_message";
+      update[nullableKey] = null;
     }
   }
 

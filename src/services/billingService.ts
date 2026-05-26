@@ -36,8 +36,27 @@ export type SubscriptionView = {
   is_subscribed: boolean;
 };
 
+export class SubscriptionRequiredError extends Error {
+  override readonly name = "SubscriptionRequiredError";
+
+  readonly code = "subscription_required";
+
+  constructor(
+    message = "An active subscription is required to share family links. Subscribe in Settings → Payment.",
+  ) {
+    super(message);
+  }
+}
+
+export function assertOrgCanShareFamilyLinks(view: SubscriptionView): void {
+  if (!view.is_subscribed) {
+    throw new SubscriptionRequiredError();
+  }
+}
+
 export type BillingService = {
   getSubscriptionView: (orgId: string) => Promise<SubscriptionView>;
+  assertOrgCanShareFamilyLinks: (orgId: string) => Promise<void>;
   createCheckoutSession: (input: {
     orgId: string;
     customerEmail?: string;
@@ -253,10 +272,43 @@ async function resolveOrgIdFromSubscription(
   return (byCustomer.rows[0]?.org_id as string | undefined) ?? null;
 }
 
+/** Pull latest trialing/active subscription from Stripe when webhooks did not update the DB. */
+async function syncSubscriptionFromStripeIfNeeded(
+  orgId: string,
+  record: OrgBillingRecord,
+): Promise<OrgBillingRecord> {
+  if (!record.stripe_customer_id) return record;
+  if (record.status === "trialing" || record.status === "active") return record;
+
+  try {
+    const stripe = getStripe();
+    const listed = await stripe.subscriptions.list({
+      customer: record.stripe_customer_id,
+      status: "all",
+      limit: 10,
+    });
+    const match = listed.data.find(
+      (sub) => sub.status === "trialing" || sub.status === "active",
+    );
+    if (!match) return record;
+
+    return await upsertFromStripeSubscription(orgId, match, record.stripe_customer_id);
+  } catch (error) {
+    console.warn("[billing] Stripe subscription sync failed:", error);
+    return record;
+  }
+}
+
 export const defaultBillingService: BillingService = {
   async getSubscriptionView(orgId: string): Promise<SubscriptionView> {
-    const record = await getOrCreateBillingRow(orgId);
+    const initial = await getOrCreateBillingRow(orgId);
+    const record = await syncSubscriptionFromStripeIfNeeded(orgId, initial);
     return toSubscriptionView(record);
+  },
+
+  async assertOrgCanShareFamilyLinks(orgId: string): Promise<void> {
+    const view = await this.getSubscriptionView(orgId);
+    assertOrgCanShareFamilyLinks(view);
   },
 
   async createCheckoutSession(input) {
@@ -339,6 +391,7 @@ export const defaultBillingService: BillingService = {
     }
 
     const event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    console.log(`[billing] webhook received: ${event.type} (${event.id})`);
 
     switch (event.type) {
       case "checkout.session.completed": {
@@ -359,6 +412,7 @@ export const defaultBillingService: BillingService = {
             ? session.customer
             : session.customer?.id ?? null;
         await upsertFromStripeSubscription(orgId, subscription, customerId);
+        console.log(`[billing] synced checkout subscription for org ${orgId}`);
         break;
       }
       case "customer.subscription.created":
