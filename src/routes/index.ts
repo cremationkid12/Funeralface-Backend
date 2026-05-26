@@ -7,11 +7,13 @@ import { createPublicRouter } from "./publicRoutes";
 import { createSettingsRouter } from "./settingsRoutes";
 import { createStaffRouter } from "./staffRoutes";
 import { createUploadRouter } from "./uploadRoutes";
+import { createBillingRouter } from "./billingRoutes";
 
 export function registerV1Routes(app: Express, services: AppServices): void {
   app.use("/v1", createHealthRouter());
   app.use("/v1/auth", createAuthRouter(services));
   app.use("/v1/settings", createSettingsRouter(services));
+  app.use("/v1/billing", createBillingRouter(services));
   app.use("/v1/uploads", createUploadRouter(services));
   app.use("/v1/staff", createStaffRouter(services));
   app.use("/v1/assignments", createAssignmentRouter(services));

@@ -19,6 +19,10 @@ function createInMemorySettingsService(): SettingsService {
       return (
         store.get(orgId) ?? {
           org_id: orgId,
+          director_name: "",
+          director_phone: "",
+          director_email: null,
+          director_image_url: null,
           funeral_home_name: "",
           funeral_home_phone: "",
           funeral_home_address: "",
@@ -94,5 +98,26 @@ test("PATCH /v1/settings returns 400 for invalid payload", async () => {
 
   assert.equal(response.status, 400);
   assert.equal(response.body.code, "bad_request");
+});
+
+test("PATCH /v1/settings updates funeral director fields", async () => {
+  const settingsService = createInMemorySettingsService();
+  const app = createApp({ settingsService });
+
+  const response = await request(app)
+    .patch("/v1/settings")
+    .set("Authorization", `Bearer ${makeToken("org-1")}`)
+    .send({
+      director_name: "Jane Director",
+      director_phone: "555-2222",
+      director_email: "jane@example.com",
+      default_message: "We are here for your family.",
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.director_name, "Jane Director");
+  assert.equal(response.body.director_phone, "555-2222");
+  assert.equal(response.body.director_email, "jane@example.com");
+  assert.equal(response.body.default_message, "We are here for your family.");
 });
 

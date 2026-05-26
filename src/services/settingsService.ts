@@ -2,6 +2,10 @@ import { Pool } from "pg";
 
 export type SettingsRecord = {
   org_id: string;
+  director_name: string;
+  director_phone: string;
+  director_email: string | null;
+  director_image_url: string | null;
   funeral_home_name: string;
   funeral_home_phone: string;
   funeral_home_address: string;
@@ -9,7 +13,17 @@ export type SettingsRecord = {
   default_message: string | null;
 };
 
-export type SettingsUpdateInput = Partial<Omit<SettingsRecord, "org_id">>;
+export type SettingsUpdateInput = {
+  director_name?: string;
+  director_phone?: string;
+  director_email?: string | null;
+  director_image_url?: string | null;
+  funeral_home_name?: string;
+  funeral_home_phone?: string;
+  funeral_home_address?: string;
+  logo_url?: string | null;
+  default_message?: string | null;
+};
 
 export type SettingsService = {
   getByOrgId: (orgId: string) => Promise<SettingsRecord>;
@@ -17,6 +31,10 @@ export type SettingsService = {
 };
 
 const DEFAULT_SETTINGS = {
+  director_name: "",
+  director_phone: "",
+  director_email: null,
+  director_image_url: null,
   funeral_home_name: "",
   funeral_home_phone: "",
   funeral_home_address: "",
@@ -45,6 +63,10 @@ export const defaultSettingsService: SettingsService = {
       `
       SELECT
         id AS org_id,
+        director_name,
+        director_phone,
+        director_email,
+        director_image_url,
         funeral_home_name,
         funeral_home_phone,
         funeral_home_address,
@@ -78,6 +100,10 @@ export const defaultSettingsService: SettingsService = {
       `
       INSERT INTO funeral_homes (
         id,
+        director_name,
+        director_phone,
+        director_email,
+        director_image_url,
         funeral_home_name,
         funeral_home_phone,
         funeral_home_address,
@@ -90,10 +116,18 @@ export const defaultSettingsService: SettingsService = {
         $3,
         $4,
         $5,
-        $6
+        $6,
+        $7,
+        $8,
+        $9,
+        $10
       )
       ON CONFLICT (id)
       DO UPDATE SET
+        director_name = EXCLUDED.director_name,
+        director_phone = EXCLUDED.director_phone,
+        director_email = EXCLUDED.director_email,
+        director_image_url = EXCLUDED.director_image_url,
         funeral_home_name = EXCLUDED.funeral_home_name,
         funeral_home_phone = EXCLUDED.funeral_home_phone,
         funeral_home_address = EXCLUDED.funeral_home_address,
@@ -102,6 +136,10 @@ export const defaultSettingsService: SettingsService = {
         updated_at = NOW()
       RETURNING
         id AS org_id,
+        director_name,
+        director_phone,
+        director_email,
+        director_image_url,
         funeral_home_name,
         funeral_home_phone,
         funeral_home_address,
@@ -110,6 +148,10 @@ export const defaultSettingsService: SettingsService = {
       `,
       [
         orgId,
+        next.director_name,
+        next.director_phone,
+        next.director_email,
+        next.director_image_url,
         next.funeral_home_name,
         next.funeral_home_phone,
         next.funeral_home_address,
@@ -121,4 +163,3 @@ export const defaultSettingsService: SettingsService = {
     return result.rows[0];
   },
 };
-

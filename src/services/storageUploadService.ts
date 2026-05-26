@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-export type UploadPurpose = "funeral_home_logo" | "staff_photo";
+export type UploadPurpose = "funeral_home_logo" | "funeral_director_photo" | "staff_photo";
 
 export type UploadImageInput = {
   orgId: string;
@@ -56,6 +56,7 @@ function sanitizePathPart(value: string): string {
 
 function pathSegmentForPurpose(purpose: UploadPurpose): string {
   if (purpose === "staff_photo") return "staff";
+  if (purpose === "funeral_director_photo") return "directors";
   return "logos";
 }
 
