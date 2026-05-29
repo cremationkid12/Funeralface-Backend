@@ -3,46 +3,14 @@ import test from "node:test";
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import { createApp } from "../../src/app";
-import type { SettingsRecord, SettingsService, SettingsUpdateInput } from "../../src/services/settingsService";
+import { billingWithSubscribedOrgs } from "../helpers/inMemoryBillingService";
+import { createInMemorySettingsService } from "../helpers/inMemorySettingsService";
+import type { SettingsUpdateInput } from "../../src/services/settingsService";
 
 const JWT_SECRET = "test-secret-settings";
 
 function makeToken(orgId: string, role = "admin"): string {
   return jwt.sign({ sub: "user-1", role, org_id: orgId }, JWT_SECRET);
-}
-
-function createInMemorySettingsService(): SettingsService {
-  const store = new Map<string, SettingsRecord>();
-
-  return {
-    async getByOrgId(orgId: string): Promise<SettingsRecord> {
-      return (
-        store.get(orgId) ?? {
-          org_id: orgId,
-          director_name: "",
-          director_phone: "",
-          director_email: null,
-          director_image_url: null,
-          funeral_home_name: "",
-          funeral_home_phone: "",
-          funeral_home_address: "",
-          logo_url: null,
-          default_message: null,
-        }
-      );
-    },
-
-    async upsertByOrgId(orgId: string, input: SettingsUpdateInput): Promise<SettingsRecord> {
-      const current = await this.getByOrgId(orgId);
-      const next: SettingsRecord = {
-        ...current,
-        ...input,
-        org_id: orgId,
-      };
-      store.set(orgId, next);
-      return next;
-    },
-  };
 }
 
 test.before(() => {
@@ -67,7 +35,10 @@ test("GET /v1/settings returns org-scoped default settings", async () => {
 
 test("PATCH /v1/settings updates only authenticated org data", async () => {
   const settingsService = createInMemorySettingsService();
-  const app = createApp({ settingsService });
+  const app = createApp({
+    settingsService,
+    billingService: billingWithSubscribedOrgs("org-1", "org-2"),
+  });
 
   const patchResponse = await request(app)
     .patch("/v1/settings")
@@ -90,7 +61,10 @@ test("PATCH /v1/settings updates only authenticated org data", async () => {
 });
 
 test("PATCH /v1/settings returns 400 for invalid payload", async () => {
-  const app = createApp({ settingsService: createInMemorySettingsService() });
+  const app = createApp({
+    settingsService: createInMemorySettingsService(),
+    billingService: billingWithSubscribedOrgs("org-1"),
+  });
   const response = await request(app)
     .patch("/v1/settings")
     .set("Authorization", `Bearer ${makeToken("org-1")}`)
@@ -102,7 +76,10 @@ test("PATCH /v1/settings returns 400 for invalid payload", async () => {
 
 test("PATCH /v1/settings updates funeral director fields", async () => {
   const settingsService = createInMemorySettingsService();
-  const app = createApp({ settingsService });
+  const app = createApp({
+    settingsService,
+    billingService: billingWithSubscribedOrgs("org-1"),
+  });
 
   const response = await request(app)
     .patch("/v1/settings")

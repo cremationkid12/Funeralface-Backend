@@ -29,6 +29,7 @@ test("migrations create core tables", async () => {
     assert.deepEqual(tableNames, [
       "assignment_audit_logs",
       "funeral_homes",
+      "org_billing",
       "pickup_assignments",
       "staff_audit_logs",
       "staff_invites",
