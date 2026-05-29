@@ -171,10 +171,22 @@ test("PATCH /v1/staff/:id returns 404 for cross-org access", async () => {
   assert.equal(updateRes.status, 404);
 });
 
-test("GET /v1/staff returns 403 for non-admin", async () => {
-  const app = createApp({ staffService: createInMemoryStaffService() });
-  const response = await request(app).get("/v1/staff").set("Authorization", `Bearer ${makeUserToken("org-1")}`);
-  assert.equal(response.status, 403);
+test("GET /v1/staff returns org staff for non-admin (read access)", async () => {
+  const service = createInMemoryStaffService();
+  const app = appWithStaff(service, "org-1");
+
+  await request(app)
+    .post("/v1/staff")
+    .set("Authorization", `Bearer ${makeToken("org-1")}`)
+    .send({ name: "Alice", phone: "555-1000" } satisfies StaffCreateInput);
+
+  const response = await request(app)
+    .get("/v1/staff")
+    .set("Authorization", `Bearer ${makeUserToken("org-1")}`);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.items.length, 1);
+  assert.equal(response.body.items[0].name, "Alice");
 });
 
 test("POST /v1/staff/:id/deactivate toggles active to false", async () => {
