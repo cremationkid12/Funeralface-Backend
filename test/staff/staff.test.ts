@@ -3,6 +3,7 @@ import test from "node:test";
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import { createApp } from "../../src/app";
+import { billingWithSubscribedOrgs } from "../helpers/inMemoryBillingService";
 import type { StaffCreateInput, StaffMemberRecord, StaffService, StaffUpdateInput } from "../../src/services/staffService";
 
 const JWT_SECRET = "test-secret-staff";
@@ -13,6 +14,13 @@ function makeToken(orgId: string): string {
 
 function makeUserToken(orgId: string): string {
   return jwt.sign({ sub: "user-1", role: "user", org_id: orgId }, JWT_SECRET);
+}
+
+function appWithStaff(service: StaffService, ...orgIds: string[]) {
+  return createApp({
+    staffService: service,
+    billingService: billingWithSubscribedOrgs(...orgIds),
+  });
 }
 
 function createInMemoryStaffService(): StaffService {
@@ -79,7 +87,7 @@ test("GET /v1/staff returns 401 without token", async () => {
 });
 
 test("POST /v1/staff creates staff for authenticated org", async () => {
-  const app = createApp({ staffService: createInMemoryStaffService() });
+  const app = appWithStaff(createInMemoryStaffService(), "org-1");
   const response = await request(app)
     .post("/v1/staff")
     .set("Authorization", `Bearer ${makeToken("org-1")}`)
@@ -92,7 +100,7 @@ test("POST /v1/staff creates staff for authenticated org", async () => {
 
 test("GET /v1/staff is org-scoped", async () => {
   const service = createInMemoryStaffService();
-  const app = createApp({ staffService: service });
+  const app = appWithStaff(service, "org-1", "org-2");
 
   await request(app)
     .post("/v1/staff")
@@ -116,7 +124,7 @@ test("GET /v1/staff is org-scoped", async () => {
 });
 
 test("PATCH /v1/staff/:id updates member", async () => {
-  const app = createApp({ staffService: createInMemoryStaffService() });
+  const app = appWithStaff(createInMemoryStaffService(), "org-1");
 
   const createRes = await request(app)
     .post("/v1/staff")
@@ -133,7 +141,7 @@ test("PATCH /v1/staff/:id updates member", async () => {
 });
 
 test("DELETE /v1/staff/:id removes member", async () => {
-  const app = createApp({ staffService: createInMemoryStaffService() });
+  const app = appWithStaff(createInMemoryStaffService(), "org-1");
 
   const createRes = await request(app)
     .post("/v1/staff")
@@ -148,7 +156,7 @@ test("DELETE /v1/staff/:id removes member", async () => {
 });
 
 test("PATCH /v1/staff/:id returns 404 for cross-org access", async () => {
-  const app = createApp({ staffService: createInMemoryStaffService() });
+  const app = appWithStaff(createInMemoryStaffService(), "org-1", "org-2");
 
   const createRes = await request(app)
     .post("/v1/staff")
@@ -170,7 +178,7 @@ test("GET /v1/staff returns 403 for non-admin", async () => {
 });
 
 test("POST /v1/staff/:id/deactivate toggles active to false", async () => {
-  const app = createApp({ staffService: createInMemoryStaffService() });
+  const app = appWithStaff(createInMemoryStaffService(), "org-1");
 
   const createRes = await request(app)
     .post("/v1/staff")
@@ -186,7 +194,7 @@ test("POST /v1/staff/:id/deactivate toggles active to false", async () => {
 });
 
 test("POST /v1/staff/:id/activate toggles active to true", async () => {
-  const app = createApp({ staffService: createInMemoryStaffService() });
+  const app = appWithStaff(createInMemoryStaffService(), "org-1");
 
   const createRes = await request(app)
     .post("/v1/staff")

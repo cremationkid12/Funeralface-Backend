@@ -3,6 +3,7 @@ import test from "node:test";
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import { createApp } from "../../src/app";
+import { billingWithSubscribedOrgs } from "../helpers/inMemoryBillingService";
 
 const JWT_SECRET = "test-secret-invite";
 
@@ -36,7 +37,7 @@ test("POST /v1/staff/invite returns 403 for non-admin", async () => {
 
 test("POST /v1/staff/invite returns 400 for invalid email", async () => {
   process.env.JWT_SECRET = JWT_SECRET;
-  const app = createApp();
+  const app = createApp({ billingService: billingWithSubscribedOrgs("org-1") });
   const response = await request(app)
     .post("/v1/staff/invite")
     .set("Authorization", `Bearer ${adminToken()}`)
@@ -49,6 +50,7 @@ test("POST /v1/staff/invite returns 400 for invalid email", async () => {
 test("POST /v1/staff/invite returns 202 when invite succeeds", async () => {
   process.env.JWT_SECRET = JWT_SECRET;
   const app = createApp({
+    billingService: billingWithSubscribedOrgs("org-1"),
     inviteUserByEmail: async (input: { email: string }) => {
       assert.equal(input.email, "staff@example.com");
     },
@@ -70,6 +72,7 @@ test("POST /v1/staff/invite returns 202 when invite succeeds", async () => {
 test("POST /v1/staff/invite returns 502 when provider fails", async () => {
   process.env.JWT_SECRET = JWT_SECRET;
   const app = createApp({
+    billingService: billingWithSubscribedOrgs("org-1"),
     inviteUserByEmail: async (_input: { email: string }) => {
       throw new Error("duplicate user");
     },
@@ -90,7 +93,7 @@ test("POST /v1/staff/invite returns 503 when invite service is not configured", 
   delete process.env.INVITE_FROM_EMAIL;
   delete process.env.INVITE_SIGNUP_URL;
 
-  const app = createApp();
+  const app = createApp({ billingService: billingWithSubscribedOrgs("org-1") });
   const response = await request(app)
     .post("/v1/staff/invite")
     .set("Authorization", `Bearer ${adminToken()}`)

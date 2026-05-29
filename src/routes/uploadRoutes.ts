@@ -2,6 +2,7 @@ import multer from "multer";
 import { Router } from "express";
 import type { Request, Response, NextFunction } from "express";
 import { requireAuth, type AuthenticatedRequest } from "../auth/authMiddleware";
+import { requireActiveSubscription, requireAdminWrite } from "../auth/writeAccessMiddleware";
 import type { AppServices } from "../appServices";
 import { postUploadImage } from "../controllers/uploadController";
 
@@ -41,6 +42,8 @@ export function createUploadRouter(services: AppServices): Router {
   router.post(
     "/image",
     requireAuth,
+    requireAdminWrite,
+    requireActiveSubscription(services.billingService),
     upload.single("file"),
     (req: Request, res: Response) =>
       postUploadImage(req as AuthenticatedRequest, res, services.storageUploadService),

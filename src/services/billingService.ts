@@ -42,20 +42,26 @@ export class SubscriptionRequiredError extends Error {
   readonly code = "subscription_required";
 
   constructor(
-    message = "An active subscription is required to share family links. Subscribe in Settings → Payment.",
+    message = "An active subscription is required. Subscribe in Settings → Payment to continue.",
   ) {
     super(message);
   }
 }
 
-export function assertOrgCanShareFamilyLinks(view: SubscriptionView): void {
+export function assertOrgHasActiveSubscription(view: SubscriptionView): void {
   if (!view.is_subscribed) {
     throw new SubscriptionRequiredError();
   }
 }
 
+/** @deprecated Use assertOrgHasActiveSubscription */
+export function assertOrgCanShareFamilyLinks(view: SubscriptionView): void {
+  assertOrgHasActiveSubscription(view);
+}
+
 export type BillingService = {
   getSubscriptionView: (orgId: string) => Promise<SubscriptionView>;
+  assertOrgHasActiveSubscription: (orgId: string) => Promise<void>;
   assertOrgCanShareFamilyLinks: (orgId: string) => Promise<void>;
   createCheckoutSession: (input: {
     orgId: string;
@@ -306,9 +312,13 @@ export const defaultBillingService: BillingService = {
     return toSubscriptionView(record);
   },
 
-  async assertOrgCanShareFamilyLinks(orgId: string): Promise<void> {
+  async assertOrgHasActiveSubscription(orgId: string): Promise<void> {
     const view = await this.getSubscriptionView(orgId);
-    assertOrgCanShareFamilyLinks(view);
+    assertOrgHasActiveSubscription(view);
+  },
+
+  async assertOrgCanShareFamilyLinks(orgId: string): Promise<void> {
+    await this.assertOrgHasActiveSubscription(orgId);
   },
 
   async createCheckoutSession(input) {

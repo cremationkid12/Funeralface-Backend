@@ -7,8 +7,6 @@ import {
   type AssignmentStatus,
   type AssignmentUpdateInput,
 } from "../services/assignmentService";
-import type { BillingService } from "../services/billingService";
-import { SubscriptionRequiredError } from "../services/billingService";
 import { FamilyLinkNotConfiguredError, isValidEmail, sendFamilyLinkByEmail } from "../services/inviteStaff";
 import { parseEtaTimeFromBody, serializeAssignmentEtaTime } from "../utils/etaTime";
 
@@ -100,18 +98,10 @@ export async function postAssignment(
   res.status(201).json(serializeAssignmentResponse(created));
 }
 
-function respondsSubscriptionRequired(res: Response, error: SubscriptionRequiredError): void {
-  res.status(403).json({
-    code: error.code,
-    message: error.message,
-  });
-}
-
 export async function patchAssignment(
   req: AuthenticatedRequest,
   res: Response,
   assignmentService: AssignmentService,
-  billingService: BillingService,
 ): Promise<void> {
   const orgId = req.auth?.orgId;
   const actorUserId = req.auth?.userId;
@@ -183,16 +173,7 @@ export async function patchAssignment(
     return;
   }
 
-  const issuingFamilyLink =
-    update.share_token !== undefined &&
-    update.share_token !== null &&
-    update.share_token.length > 0;
-
   try {
-    if (issuingFamilyLink) {
-      await billingService.assertOrgCanShareFamilyLinks(orgId);
-    }
-
     const updated = await assignmentService.updateByOrgIdAndId(orgId, id, update, actorUserId);
     if (!updated) {
       res.status(404).json({
@@ -217,10 +198,6 @@ export async function patchAssignment(
       });
       return;
     }
-    if (error instanceof SubscriptionRequiredError) {
-      respondsSubscriptionRequired(res, error);
-      return;
-    }
     throw error;
   }
 }
@@ -229,7 +206,6 @@ export async function postShareFamilyLinkByEmail(
   req: AuthenticatedRequest,
   res: Response,
   assignmentService: AssignmentService,
-  billingService: BillingService,
 ): Promise<void> {
   const orgId = req.auth?.orgId;
   if (!orgId) {
@@ -282,8 +258,6 @@ export async function postShareFamilyLinkByEmail(
   const familyLink = `${familyLinkBaseUrl}/family/${encodeURIComponent(assignment.share_token)}`;
 
   try {
-    await billingService.assertOrgCanShareFamilyLinks(orgId);
-
     await sendFamilyLinkByEmail({
       email,
       familyLink,
@@ -297,10 +271,6 @@ export async function postShareFamilyLinkByEmail(
     });
     res.status(202).json({ ok: true });
   } catch (error) {
-    if (error instanceof SubscriptionRequiredError) {
-      respondsSubscriptionRequired(res, error);
-      return;
-    }
     if (error instanceof FamilyLinkNotConfiguredError) {
       res.status(503).json({
         code: "family_link_not_configured",

@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { requireAuth, type AuthenticatedRequest } from "../auth/authMiddleware";
 import { requireRole } from "../auth/requireRole";
+import { requireActiveSubscription, requireAdminWrite } from "../auth/writeAccessMiddleware";
 import type { AppServices } from "../appServices";
 import {
   deleteStaff,
@@ -17,11 +18,15 @@ import {
 
 export function createStaffRouter(services: AppServices): Router {
   const router = Router();
+  const requireAdminWriteAccess = [
+    requireAuth,
+    requireAdminWrite,
+    requireActiveSubscription(services.billingService),
+  ] as const;
 
   router.post(
     "/invite",
-    requireAuth,
-    requireRole("admin"),
+    ...requireAdminWriteAccess,
     (req: Request, res: Response) =>
       postStaffInvite(req as AuthenticatedRequest, res, services.inviteUserByEmail),
   );
@@ -30,38 +35,40 @@ export function createStaffRouter(services: AppServices): Router {
     getMyStaffProfile(req as AuthenticatedRequest, res, services.staffService),
   );
 
-  router.patch("/me", requireAuth, (req: Request, res: Response) =>
-    patchMyStaffProfile(req as AuthenticatedRequest, res, services.staffService),
+  router.patch(
+    "/me",
+    requireAuth,
+    requireActiveSubscription(services.billingService),
+    (req: Request, res: Response) =>
+      patchMyStaffProfile(req as AuthenticatedRequest, res, services.staffService),
   );
 
   router.get("/", requireAuth, requireRole("admin"), (req: Request, res: Response) =>
     getStaffList(req as AuthenticatedRequest, res, services.staffService),
   );
 
-  router.post("/", requireAuth, requireRole("admin"), (req: Request, res: Response) =>
+  router.post("/", ...requireAdminWriteAccess, (req: Request, res: Response) =>
     postStaff(req as AuthenticatedRequest, res, services.staffService),
   );
 
-  router.patch("/:id", requireAuth, requireRole("admin"), (req: Request, res: Response) =>
+  router.patch("/:id", ...requireAdminWriteAccess, (req: Request, res: Response) =>
     patchStaff(req as AuthenticatedRequest, res, services.staffService),
   );
 
-  router.delete("/:id", requireAuth, requireRole("admin"), (req: Request, res: Response) =>
+  router.delete("/:id", ...requireAdminWriteAccess, (req: Request, res: Response) =>
     deleteStaff(req as AuthenticatedRequest, res, services.staffService),
   );
 
   router.post(
     "/:id/activate",
-    requireAuth,
-    requireRole("admin"),
+    ...requireAdminWriteAccess,
     (req: Request, res: Response) =>
       postStaffActivate(req as AuthenticatedRequest, res, services.staffService),
   );
 
   router.post(
     "/:id/deactivate",
-    requireAuth,
-    requireRole("admin"),
+    ...requireAdminWriteAccess,
     (req: Request, res: Response) =>
       postStaffDeactivate(req as AuthenticatedRequest, res, services.staffService),
   );

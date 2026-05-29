@@ -3,94 +3,25 @@ import test from "node:test";
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import { createApp } from "../../src/app";
+import { billingWithSubscribedOrgs } from "../helpers/inMemoryBillingService";
+import { createInMemoryAssignmentService } from "../helpers/inMemoryAssignmentService";
 import {
   type AssignmentCreateInput,
   type AssignmentService,
-  type AssignmentStatus,
   type AssignmentUpdateInput,
-  type PickupAssignmentRecord,
 } from "../../src/services/assignmentService";
 
 const JWT_SECRET = "test-secret-assignments";
 
-type AuditEntry = {
-  assignmentId: string;
-  orgId: string;
-  fromStatus: AssignmentStatus;
-  toStatus: AssignmentStatus;
-  actorUserId: string;
-};
-
-function makeToken(orgId: string, userId = "user-1"): string {
-  return jwt.sign({ sub: userId, role: "admin", org_id: orgId }, JWT_SECRET);
+function makeToken(orgId: string, userId = "user-1", role = "admin"): string {
+  return jwt.sign({ sub: userId, role, org_id: orgId }, JWT_SECRET);
 }
 
-function createInMemoryAssignmentService() {
-  const data = new Map<string, PickupAssignmentRecord[]>();
-  const audits: AuditEntry[] = [];
-  let counter = 1;
-
-  const listFor = (orgId: string) => data.get(orgId) ?? [];
-
-  const service: AssignmentService = {
-    async listByOrgId(orgId, sort) {
-      const items = [...listFor(orgId)];
-      if (sort === "-created_at") return items.reverse();
-      return items;
-    },
-
-    async createByOrgId(orgId, input) {
-      const item: PickupAssignmentRecord = {
-        id: `assignment-${counter++}`,
-        org_id: orgId,
-        decedent_name: input.decedent_name,
-        pickup_address: input.pickup_address,
-        contact_name: input.contact_name,
-        contact_phone: input.contact_phone,
-        notes: input.notes ?? null,
-        assigned_staff_id: input.assigned_staff_id ?? null,
-        status: (input.status ?? "pending") as AssignmentStatus,
-      };
-      data.set(orgId, [...listFor(orgId), item]);
-      return item;
-    },
-
-    async updateByOrgIdAndId(orgId, id, input, actorUserId) {
-      const items = listFor(orgId);
-      const idx = items.findIndex((i) => i.id === id);
-      if (idx < 0) return null;
-
-      const current = items[idx];
-      const nextStatus = (input.status ?? current.status) as AssignmentStatus;
-
-      const next: PickupAssignmentRecord = {
-        ...current,
-        ...input,
-        status: nextStatus,
-      };
-      const arr = [...items];
-      arr[idx] = next;
-      data.set(orgId, arr);
-
-      if (current.status !== next.status) {
-        audits.push({
-          assignmentId: id,
-          orgId,
-          fromStatus: current.status,
-          toStatus: next.status,
-          actorUserId,
-        });
-      }
-
-      return next;
-    },
-
-    async getFamilyShareEmailContextByOrgIdAndId() {
-      return null;
-    },
-  };
-
-  return { service, audits };
+function appWithAssignments(service: AssignmentService, ...orgIds: string[]) {
+  return createApp({
+    assignmentService: service,
+    billingService: billingWithSubscribedOrgs(...orgIds),
+  });
 }
 
 test.before(() => {
@@ -106,7 +37,7 @@ test("GET /v1/assignments returns 401 without token", async () => {
 
 test("POST /v1/assignments creates assignment", async () => {
   const { service } = createInMemoryAssignmentService();
-  const app = createApp({ assignmentService: service });
+  const app = appWithAssignments(service, "org-1");
   const response = await request(app)
     .post("/v1/assignments")
     .set("Authorization", `Bearer ${makeToken("org-1")}`)
@@ -124,7 +55,7 @@ test("POST /v1/assignments creates assignment", async () => {
 
 test("GET /v1/assignments is org-scoped", async () => {
   const { service } = createInMemoryAssignmentService();
-  const app = createApp({ assignmentService: service });
+  const app = appWithAssignments(service, "org-1", "org-2");
 
   await request(app)
     .post("/v1/assignments")
@@ -158,7 +89,7 @@ test("GET /v1/assignments is org-scoped", async () => {
 
 test("PATCH /v1/assignments/:id updates status and creates audit log", async () => {
   const { service, audits } = createInMemoryAssignmentService();
-  const app = createApp({ assignmentService: service });
+  const app = appWithAssignments(service, "org-1");
 
   const created = await request(app)
     .post("/v1/assignments")
@@ -185,7 +116,7 @@ test("PATCH /v1/assignments/:id updates status and creates audit log", async () 
 
 test("PATCH /v1/assignments/:id 404 for cross-org assignment", async () => {
   const { service } = createInMemoryAssignmentService();
-  const app = createApp({ assignmentService: service });
+  const app = appWithAssignments(service, "org-1", "org-2");
 
   const created = await request(app)
     .post("/v1/assignments")

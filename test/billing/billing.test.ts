@@ -3,72 +3,13 @@ import test from "node:test";
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import { createApp } from "../../src/app";
-import {
-  assertOrgCanShareFamilyLinks,
-  BILLING_PLAN_AMOUNT_CENTS,
-  BILLING_TRIAL_DAYS,
-  type BillingService,
-  type SubscriptionView,
-} from "../../src/services/billingService";
+import { BILLING_PLAN_AMOUNT_CENTS, BILLING_TRIAL_DAYS } from "../../src/services/billingService";
+import { createInMemoryBillingService } from "../helpers/inMemoryBillingService";
 
 const JWT_SECRET = "test-secret-billing";
 
 function makeToken(orgId: string, role = "admin"): string {
   return jwt.sign({ sub: "user-1", role, org_id: orgId }, JWT_SECRET);
-}
-
-function createInMemoryBillingService(): BillingService {
-  const store = new Map<string, SubscriptionView>();
-
-  const defaultView = (orgId: string): SubscriptionView => ({
-    org_id: orgId,
-    status: "none",
-    plan_amount_cents: BILLING_PLAN_AMOUNT_CENTS,
-    plan_interval: "month",
-    trial_days: BILLING_TRIAL_DAYS,
-    trial_ends_at: null,
-    current_period_end: null,
-    cancel_at_period_end: false,
-    is_subscribed: false,
-  });
-
-  return {
-    async getSubscriptionView(orgId: string): Promise<SubscriptionView> {
-      return store.get(orgId) ?? defaultView(orgId);
-    },
-
-    async assertOrgCanShareFamilyLinks(orgId: string): Promise<void> {
-      const view = await this.getSubscriptionView(orgId);
-      assertOrgCanShareFamilyLinks(view);
-    },
-
-    async createCheckoutSession(input) {
-      const current = await this.getSubscriptionView(input.orgId);
-      if (current.is_subscribed) {
-        const error = new Error("already subscribed");
-        (error as Error & { code?: string }).code = "subscription_exists";
-        throw error;
-      }
-      return {
-        checkout_url: "https://checkout.stripe.test/session",
-        session_id: "cs_test_123",
-      };
-    },
-
-    async createPortalSession(input) {
-      const current = await this.getSubscriptionView(input.orgId);
-      if (current.status === "none") {
-        const error = new Error("missing customer");
-        (error as Error & { code?: string }).code = "billing_customer_missing";
-        throw error;
-      }
-      return { portal_url: "https://billing.stripe.test/portal" };
-    },
-
-    async handleWebhookEvent() {
-      // no-op for API tests
-    },
-  };
 }
 
 test.before(() => {
