@@ -43,7 +43,7 @@ export function createStaffRouter(services: AppServices): Router {
       patchMyStaffProfile(req as AuthenticatedRequest, res, services.staffService),
   );
 
-  router.get("/", requireAuth, requireRole("admin"), (req: Request, res: Response) =>
+  router.get("/", requireAuth, (req: Request, res: Response) =>
     getStaffList(req as AuthenticatedRequest, res, services.staffService),
   );
 
